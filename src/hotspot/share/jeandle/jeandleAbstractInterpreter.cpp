@@ -26,6 +26,7 @@
 #include "jeandle/jeandleType.hpp"
 #include "jeandle/jeandleUtils.hpp"
 
+#include "logging/log.hpp"
 #include "utilities/debug.hpp"
 #include "ci/ciMethodBlocks.hpp"
 #include "runtime/sharedRuntime.hpp"
@@ -899,6 +900,17 @@ void JeandleAbstractInterpreter::invoke() {
   assert(declared_signature != nullptr, "cannot be null");
   assert(will_link == target->is_loaded(), "");
 
+  if (target->is_loaded() && target->check_intrinsic_candidate()) {
+    if (log_is_enabled(Debug, jit)) {
+      ResourceMark rm;
+      stringStream ss;
+      target->print_name(&ss);
+      log_debug(jit)("Find intrinsic candidate :%s", ss.as_string());
+    }
+    if (inline_intrinsic(target)) {
+      return;
+    };
+  }
   const Bytecodes::Code bc = _codes.cur_bc();
 
   // Construct arguments.
@@ -967,6 +979,18 @@ void JeandleAbstractInterpreter::invoke() {
   if (return_type != BasicType::T_VOID) {
     _jvm->push(return_type, call);
   }
+}
+
+bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
+  switch(target->intrinsic_id()) {
+    case vmIntrinsics::_dabs: {
+      // _ir_builder.CreateIntrinsic()
+      return false;
+    }
+    default:
+      return false;
+  }
+  return true;
 }
 
 void JeandleAbstractInterpreter::stack_op(Bytecodes::Code code) {
