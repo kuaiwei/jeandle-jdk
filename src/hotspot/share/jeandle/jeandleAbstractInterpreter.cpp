@@ -901,13 +901,13 @@ void JeandleAbstractInterpreter::invoke() {
   assert(will_link == target->is_loaded(), "");
 
   if (target->is_loaded() && target->check_intrinsic_candidate()) {
-    if (log_is_enabled(Debug, jit)) {
-      ResourceMark rm;
-      stringStream ss;
-      target->print_name(&ss);
-      log_debug(jit)("Find intrinsic candidate :%s", ss.as_string());
-    }
     if (inline_intrinsic(target)) {
+      if (log_is_enabled(Debug, jeandle)) {
+        ResourceMark rm;
+        stringStream ss;
+        target->print_name(&ss);
+        log_debug(jeandle)("Method `%s` is parsed as intrinsic", ss.as_string());
+      }
       return;
     };
   }
@@ -984,8 +984,12 @@ void JeandleAbstractInterpreter::invoke() {
 bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
   switch(target->intrinsic_id()) {
     case vmIntrinsics::_dabs: {
-      // _ir_builder.CreateIntrinsic()
-      return false;
+      _jvm->dpush(_ir_builder.CreateIntrinsic(JeandleType::java2llvm(BasicType::T_DOUBLE, *_context), llvm::Intrinsic::fabs, {_jvm->dpop()}));
+      break;
+    }
+    case vmIntrinsicID::_fabs: {
+      _jvm->fpush(_ir_builder.CreateIntrinsic(JeandleType::java2llvm(BasicType::T_FLOAT, *_context), llvm::Intrinsic::fabs, {_jvm->fpop()}));
+      break;
     }
     default:
       return false;
