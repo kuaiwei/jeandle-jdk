@@ -994,7 +994,7 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
     default:
       return false;
   }
-  return true;
+  return false;
 }
 
 void JeandleAbstractInterpreter::stack_op(Bytecodes::Code code) {
