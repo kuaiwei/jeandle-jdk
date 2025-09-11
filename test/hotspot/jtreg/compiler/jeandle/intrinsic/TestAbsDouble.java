@@ -20,19 +20,17 @@
 
 /*
  * @test
- * @library /test/lib
+ * @library /test/lib /
  * @build jdk.test.lib.Asserts
  * @run main/othervm compiler.jeandle.intrinsic.TestAbsDouble
  */
 
 package compiler.jeandle.intrinsic;
 
-import java.nio.file.*;
+import compiler.jeandle.fileCheck.FileCheck;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import jdk.test.lib.Asserts;
 import jdk.test.lib.process.OutputAnalyzer;
@@ -55,29 +53,17 @@ public class TestAbsDouble {
         output.shouldHaveExitValue(0)
               .shouldContain("Method `static jdouble java.lang.Math.abs(jdouble)` is parsed as intrinsic");
 
-        // verify IR
-        String dumpedIR = getJeandleIR(dump_path);
-        Asserts.assertTrue(dumpedIR.indexOf("call double @llvm.fabs.f64(double") != -1);
-    }
-
-    static String getJeandleIR(String dir) throws Exception {
-        Pattern pattern = Pattern.compile("^compiler_jeandle_intrinsic_TestAbsDouble\\$TestWrapper_abs_double_.*-[0-9]+\\.ll$");  // skip *_optimized.ll
-        Path directory = Paths.get(dir);
-        if (!Files.isDirectory(directory)) {
-            throw new RuntimeException("Directory " + dir + " does not exist");
-        }
-        try (Stream<Path> paths = Files.list(directory)) {
-            List<Path> matched = paths.filter(Files::isRegularFile)
-                 .filter(path -> {
-                   return pattern.matcher(path.getFileName().toString()).matches();})
-                 .toList();
-
-            if (matched.size() != 1) {
-                throw new RuntimeException("Should dump only one jeandle ir file: " + matched.size());
-            }
-
-            return Files.readString(matched.get(0));
-        }
+        // Verify llvm IR
+        FileCheck checker = new FileCheck(dump_path, TestWrapper.class.getMethod("abs_double", double.class), false);
+        // find compiled method
+        checker.check("define hotspotcc double @\"compiler_jeandle_intrinsic_TestAbsDouble$TestWrapper_abs_double_(D)D\"(double %0)");
+        // check IR
+        checker.checkNext("entry:");
+        checker.checkNext("br label %bci_0");
+        checker.checkNext("");
+        checker.checkNext("bci_0:");
+        // the llvm intrinsic is used
+        checker.checkNext("call double @llvm.fabs.f64(double %0)");
     }
 
     static public class TestWrapper {
