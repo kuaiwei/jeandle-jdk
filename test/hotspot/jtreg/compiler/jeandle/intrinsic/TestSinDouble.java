@@ -43,14 +43,14 @@ public class TestSinDouble {
         boolean is_x86 = System.getProperty("os.arch").equals("amd64");
         String dump_path = System.getProperty("java.io.tmpdir");
 
-        // intrinsic by SharedRuntime
+        // intrinsic by StubRoutine
         ArrayList<String> command_args = new ArrayList<String>(List.of(
             "-Xbatch", "-XX:-TieredCompilation", "-XX:+UseJeandleCompiler", "-Xcomp",
             "-Xlog:jeandle=debug", "-XX:+JeandleDumpIR",
             "-XX:JeandleDumpDirectory="+dump_path,
             "-XX:CompileCommand=compileonly,"+TestWrapper.class.getName()+"::sin_double"));
         if (is_x86) {
-          command_args.addAll(List.of("-XX:+UnlockDiagnosticVMOptions", "-XX:-UseLibmIntrinsic"));
+          command_args.addAll(List.of("-XX:+UnlockDiagnosticVMOptions", "-XX:+UseLibmIntrinsic"));
         }
         command_args.add(TestWrapper.class.getName());
     
@@ -68,10 +68,10 @@ public class TestSinDouble {
         checker.checkNext("entry:");
         checker.checkNext("br label %bci_0");
         checker.checkNext("bci_0:");
-        checker.checkNext("%\"SharedRuntime::dsin\" = tail call double inttoptr");
-        checker.checkNext("ret double %\"SharedRuntime::dsin\"");
+        checker.checkNext("%\"StubRoutines::dsin\" = tail call double inttoptr");
+        checker.checkNext("ret double %\"StubRoutines::dsin\"");
 
-        // intrinsic by StubRoutine
+        // intrinsic by SharedRuntime
         if (is_x86) {
             dump_path = System.getProperty("java.io.tmpdir")+"/test2";
             Path tmp2 = Path.of(dump_path);
@@ -84,7 +84,7 @@ public class TestSinDouble {
                 "-Xlog:jeandle=debug", "-XX:+JeandleDumpIR",
                 "-XX:JeandleDumpDirectory="+dump_path,
                 "-XX:CompileCommand=compileonly,"+TestWrapper.class.getName()+"::sin_double",
-                "-XX:+UnlockDiagnosticVMOptions", "-XX:+UseLibmIntrinsic",
+                "-XX:+UnlockDiagnosticVMOptions", "-XX:-UseLibmIntrinsic",
                 TestWrapper.class.getName()));
             pb = ProcessTools.createLimitedTestJavaProcessBuilder(command_args);
             output = ProcessTools.executeCommand(pb);
@@ -98,8 +98,8 @@ public class TestSinDouble {
             checker.checkNext("entry:");
             checker.checkNext("br label %bci_0");
             checker.checkNext("bci_0:");
-            checker.checkNext("%\"StubRoutines::dsin\" = tail call double inttoptr");
-            checker.checkNext("ret double %\"StubRoutines::dsin\"");
+            checker.checkNext("%\"SharedRuntime::dsin\" = tail call double inttoptr");
+            checker.checkNext("ret double %\"SharedRuntime::dsin\"");
         }
     }
 
