@@ -34,6 +34,7 @@
 #include "utilities/debug.hpp"
 #include "ci/ciMethodBlocks.hpp"
 #include "runtime/sharedRuntime.hpp"
+#include "runtime/stubRoutines.hpp"
 #include "utilities/ostream.hpp"
 
 JeandleBasicBlock::JeandleBasicBlock(int block_id,
@@ -941,17 +942,19 @@ void JeandleAbstractInterpreter::invoke() {
   assert(declared_signature != nullptr, "cannot be null");
   assert(will_link == target->is_loaded(), "");
 
-  if (target->is_loaded() && target->check_intrinsic_candidate()) {
-    if (inline_intrinsic(target)) {
-      if (log_is_enabled(Debug, jeandle)) {
-        ResourceMark rm;
-        stringStream ss;
-        target->print_name(&ss);
-        log_debug(jeandle)("Method `%s` is parsed as intrinsic", ss.as_string());
-      }
-      return;
-    };
+  // try inline callee as intrinsic
+  if (target->is_loaded()
+    && target->check_intrinsic_candidate()
+    && inline_intrinsic(target)) {
+    if (log_is_enabled(Debug, jeandle)) {
+      ResourceMark rm;
+      stringStream ss;
+      target->print_name(&ss);
+      log_debug(jeandle)("Method `%s` is parsed as intrinsic", ss.as_string());
+    }
+    return;
   }
+
   const Bytecodes::Code bc = _codes.cur_bc();
 
   // Construct arguments.
@@ -1036,10 +1039,64 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
       _jvm->fpush(_ir_builder.CreateIntrinsic(JeandleType::java2llvm(BasicType::T_FLOAT, *_context), llvm::Intrinsic::fabs, {_jvm->fpop()}));
       break;
     }
+    case vmIntrinsicID::_dsin: {
+      if (StubRoutines::dsin() != nullptr) {
+        _jvm->dpush(call_vm((address) StubRoutines::dsin(), "StubRoutines::dsin", T_DOUBLE, {T_DOUBLE}, true));
+      } else {
+        _jvm->dpush(call_vm((address) SharedRuntime::dsin, "SharedRuntime::dsin", T_DOUBLE, {T_DOUBLE}, true));
+      }
+      break;
+    }
     default:
       return false;
   }
   return true;
+}
+
+// Generate IR for call into runtime stub
+llvm::CallInst* JeandleAbstractInterpreter::call_vm(address c_func, llvm::StringRef name, BasicType return_type, llvm::ArrayRef<BasicType> arg_types, bool is_leaf) {
+  std::vector<llvm::Value*> args (arg_types.size());
+  std::vector<llvm::Type*>  types(arg_types.size());
+
+  int i=0;
+  for (BasicType type : arg_types) {
+    switch (type) {
+      case BasicType::T_BOOLEAN:
+      case BasicType::T_CHAR:
+      case BasicType::T_BYTE:
+      case BasicType::T_SHORT:
+      case BasicType::T_INT:
+      case BasicType::T_FLOAT:
+      case BasicType::T_DOUBLE:
+      case BasicType::T_LONG:
+      case BasicType::T_OBJECT:
+      case BasicType::T_ARRAY:
+        args [i] = _jvm->pop(type);
+        types[i] = JeandleType::java2llvm(type, *_context);
+        break;
+      case BasicType::T_VOID:
+      case BasicType::T_ADDRESS:
+      case BasicType::T_NARROWOOP:
+      case BasicType::T_METADATA:
+      case BasicType::T_NARROWKLASS:
+      case BasicType::T_CONFLICT:
+      case BasicType::T_ILLEGAL:
+      default:
+        ShouldNotReachHere();
+        return nullptr;
+    }
+    i++;
+  }
+  llvm::Type*         func_return_type = JeandleType::java2llvm(return_type, *_context);
+  llvm::FunctionType* func_type        = llvm::FunctionType::get(func_return_type, types, false);
+  llvm::PointerType*  func_ptr_type    = llvm::PointerType::get(func_type, llvm::jeandle::AddrSpace::CHeapAddrSpace);
+  llvm::Value*        entry_addr       = _ir_builder.getInt64((intptr_t)c_func);
+  llvm::Value*        func_ptr         = _ir_builder.CreateIntToPtr(entry_addr, func_ptr_type);
+  llvm::CallInst*     call             = _ir_builder.CreateCall(func_type, func_ptr, args);
+  call->setTailCall(is_leaf);
+  call->setCallingConv(llvm::CallingConv::C);
+  call->setName(name);
+  return call;
 }
 
 void JeandleAbstractInterpreter::stack_op(Bytecodes::Code code) {
