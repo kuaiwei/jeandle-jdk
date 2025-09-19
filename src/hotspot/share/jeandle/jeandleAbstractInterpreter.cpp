@@ -1080,8 +1080,8 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
   return true;
 }
 
-// Generate IR for call into runtime stub
-llvm::CallInst* JeandleAbstractInterpreter::call_vm(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value *> args, bool is_leaf) {
+// Generate IR for calling into JeandleRuntimeRoutine
+llvm::CallInst* JeandleAbstractInterpreter::call_runtime_routine(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value *> args, bool is_leaf) {
   llvm::CallInst *call = _ir_builder.CreateCall(callee, args);
   call->setCallingConv(llvm::CallingConv::C);
   call->setTailCall(is_leaf);
