@@ -48,7 +48,7 @@
 //-----------------------------------------------------------------------------------------------------------------------------------
 //  name                     | func_entry            | return_type                        | arg_types
 //-----------------------------------------------------------------------------------------------------------------------------------
-#define ALL_HOTSPOT_STUBS(def)                                                                                                       \
+#define ALL_HOTSPOT_ROUTINES(def)                                                                                                       \
   def(SharedRuntime_dsin,    SharedRuntime::dsin,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(StubRoutines_dsin,     StubRoutines::dsin(),    llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(SharedRuntime_drem,    SharedRuntime::drem,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context),         \
