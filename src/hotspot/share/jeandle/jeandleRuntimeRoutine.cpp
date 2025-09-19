@@ -60,8 +60,8 @@ bool JeandleRuntimeRoutine::generate(llvm::TargetMachine* target_machine, llvm::
   // Generate assembly routines.
   ALL_JEANDLE_ASSEMBLY_ROUTINES(GEN_ASSEMBLY_ROUTINE_BLOB);
 
-  // Register hotspot stub
-  ALL_HOTSPOT_STUBS(REGISTER_HOTSPOT_STUBS);
+  // Register hotspot routines
+  ALL_HOTSPOT_ROUTINES(REGISTER_HOTSPOT_ROUTINES);
 
   return true;
 }
