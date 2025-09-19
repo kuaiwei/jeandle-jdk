@@ -1040,11 +1040,9 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
       break;
     }
     case vmIntrinsicID::_dsin: {
-      if (StubRoutines::dsin() != nullptr) {
-        _jvm->dpush(call_vm((address) StubRoutines::dsin(), "StubRoutines::dsin", T_DOUBLE, {T_DOUBLE}, true));
-      } else {
-        _jvm->dpush(call_vm((address) SharedRuntime::dsin, "SharedRuntime::dsin", T_DOUBLE, {T_DOUBLE}, true));
-      }
+      llvm::FunctionCallee callee = StubRoutines::dsin() != nullptr ? JeandleRuntimeRoutine::hotspot_StubRoutines_dsin_callee(_module) :
+                                                                      JeandleRuntimeRoutine::hotspot_SharedRuntime_dsin_callee(_module);
+      _jvm->dpush(call_vm(callee, {_jvm->dpop()}, /* is_leaf */ true));
       break;
     }
     default:
@@ -1054,48 +1052,10 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
 }
 
 // Generate IR for call into runtime stub
-llvm::CallInst* JeandleAbstractInterpreter::call_vm(address c_func, llvm::StringRef name, BasicType return_type, llvm::ArrayRef<BasicType> arg_types, bool is_leaf) {
-  std::vector<llvm::Value*> args (arg_types.size());
-  std::vector<llvm::Type*>  types(arg_types.size());
-
-  int i=0;
-  for (BasicType type : arg_types) {
-    switch (type) {
-      case BasicType::T_BOOLEAN:
-      case BasicType::T_CHAR:
-      case BasicType::T_BYTE:
-      case BasicType::T_SHORT:
-      case BasicType::T_INT:
-      case BasicType::T_FLOAT:
-      case BasicType::T_DOUBLE:
-      case BasicType::T_LONG:
-      case BasicType::T_OBJECT:
-      case BasicType::T_ARRAY:
-        args [i] = _jvm->pop(type);
-        types[i] = JeandleType::java2llvm(type, *_context);
-        break;
-      case BasicType::T_VOID:
-      case BasicType::T_ADDRESS:
-      case BasicType::T_NARROWOOP:
-      case BasicType::T_METADATA:
-      case BasicType::T_NARROWKLASS:
-      case BasicType::T_CONFLICT:
-      case BasicType::T_ILLEGAL:
-      default:
-        ShouldNotReachHere();
-        return nullptr;
-    }
-    i++;
-  }
-  llvm::Type*         func_return_type = JeandleType::java2llvm(return_type, *_context);
-  llvm::FunctionType* func_type        = llvm::FunctionType::get(func_return_type, types, false);
-  llvm::PointerType*  func_ptr_type    = llvm::PointerType::get(func_type, llvm::jeandle::AddrSpace::CHeapAddrSpace);
-  llvm::Value*        entry_addr       = _ir_builder.getInt64((intptr_t)c_func);
-  llvm::Value*        func_ptr         = _ir_builder.CreateIntToPtr(entry_addr, func_ptr_type);
-  llvm::CallInst*     call             = _ir_builder.CreateCall(func_type, func_ptr, args);
-  call->setTailCall(is_leaf);
+llvm::CallInst* JeandleAbstractInterpreter::call_vm(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value *> args, bool is_leaf) {
+  llvm::CallInst *call = _ir_builder.CreateCall(callee, args);
   call->setCallingConv(llvm::CallingConv::C);
-  call->setName(name);
+  call->setTailCall(is_leaf);
   return call;
 }
 
@@ -1277,32 +1237,16 @@ void JeandleAbstractInterpreter::arith_op(BasicType type, Bytecodes::Code code) 
 void JeandleAbstractInterpreter::rem_op(BasicType type, Bytecodes::Code code) {
   assert(type == BasicType::T_FLOAT || type == BasicType::T_DOUBLE, "unexpected type");
   assert(code == Bytecodes::_frem || code == Bytecodes::_drem, "unexpected byte code");
-  llvm::Type* return_type = nullptr;
-  std::vector<llvm::Type*> args_type;
-  address call_addr;
 
   if (code == Bytecodes::_frem) {
-    llvm::Type* float_type = llvm::Type::getFloatTy(*_context);
-    return_type = float_type;
-    args_type = {float_type, float_type};
-    call_addr = CAST_FROM_FN_PTR(address, SharedRuntime::frem);
+    llvm::Value* r = _jvm->fpop();
+    llvm::Value* l = _jvm->fpop();
+    _jvm->fpush(call_vm(JeandleRuntimeRoutine::hotspot_SharedRuntime_frem_callee(_module), {l, r}, /* is_leaf */ true));
   } else {
-    llvm::Type* double_type = llvm::Type::getDoubleTy(*_context);
-    return_type = double_type;
-    args_type = {double_type, double_type};
-    call_addr = CAST_FROM_FN_PTR(address, SharedRuntime::drem);
+    llvm::Value* r = _jvm->dpop();
+    llvm::Value* l = _jvm->dpop();
+    _jvm->dpush(call_vm(JeandleRuntimeRoutine::hotspot_SharedRuntime_drem_callee(_module), {l, r}, /* is_leaf */ true));
   }
-
-  llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, args_type, false);
-  llvm::PointerType* func_ptr_type = llvm::PointerType::get(func_type, llvm::jeandle::AddrSpace::CHeapAddrSpace);
-  llvm::Value* func_addr = _ir_builder.getInt64((intptr_t)call_addr);
-  llvm::Value* func_ptr = _ir_builder.CreateIntToPtr(func_addr, func_ptr_type);
-  // call the runtime routine directly
-  llvm::Value* r = _jvm->pop(type);
-  llvm::Value* l = _jvm->pop(type);
-  llvm::CallInst* call = _ir_builder.CreateCall(func_type, func_ptr, {l, r});
-  call->setCallingConv(llvm::CallingConv::C);
-  _jvm->push(type, call);
 }
 
 llvm::CallInst* JeandleAbstractInterpreter::call_java_op(llvm::StringRef java_op, llvm::ArrayRef<llvm::Value*> args) {

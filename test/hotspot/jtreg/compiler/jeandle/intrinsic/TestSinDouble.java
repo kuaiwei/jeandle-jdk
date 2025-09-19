@@ -68,8 +68,8 @@ public class TestSinDouble {
         checker.checkNext("entry:");
         checker.checkNext("br label %bci_0");
         checker.checkNext("bci_0:");
-        checker.checkNext("%\"StubRoutines::dsin\" = tail call double inttoptr");
-        checker.checkNext("ret double %\"StubRoutines::dsin\"");
+        checker.checkNext("tail call double @hotspot_stub_StubRoutines_dsin");
+        checker.checkNext("ret double");
 
         // intrinsic by SharedRuntime
         if (is_x86) {
@@ -98,8 +98,8 @@ public class TestSinDouble {
             checker.checkNext("entry:");
             checker.checkNext("br label %bci_0");
             checker.checkNext("bci_0:");
-            checker.checkNext("%\"SharedRuntime::dsin\" = tail call double inttoptr");
-            checker.checkNext("ret double %\"SharedRuntime::dsin\"");
+            checker.checkNext("tail call double @hotspot_stub_SharedRuntime_dsin");
+            checker.checkNext("ret double");
         }
     }
 
