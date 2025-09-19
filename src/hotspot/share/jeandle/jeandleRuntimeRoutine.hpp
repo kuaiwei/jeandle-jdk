@@ -48,7 +48,7 @@
 //-----------------------------------------------------------------------------------------------------------------------------------
 //  name                     | func_entry            | return_type                        | arg_types
 //-----------------------------------------------------------------------------------------------------------------------------------
-#define ALL_HOTSPOT_ROUTINES(def)                                                                                                       \
+#define ALL_HOTSPOT_ROUTINES(def)                                                                                                    \
   def(SharedRuntime_dsin,    SharedRuntime::dsin,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(StubRoutines_dsin,     StubRoutines::dsin(),    llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(SharedRuntime_drem,    SharedRuntime::drem,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context),         \
@@ -88,16 +88,16 @@ class JeandleRuntimeRoutine : public AllStatic {
     return _routine_entry.lookup(name);
   }
 
-#define DEF_HOTSPOT_ROUTINE_CALLEE(name, func_entry, return_type, ...) \
-  static llvm::FunctionCallee hotspot_##name##_callee(llvm::Module& target_module) {                    \
-    llvm::LLVMContext& context = target_module.getContext();                                            \
-    llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, {__VA_ARGS__}, false);         \
-    llvm::FunctionCallee callee = target_module.getOrInsertFunction(#name, func_type); \
-    llvm::cast<llvm::Function>(callee.getCallee())->setCallingConv(llvm::CallingConv::C);               \
-    return callee;                                                                                      \
+#define DEF_HOTSPOT_ROUTINE_CALLEE(name, func_entry, return_type, ...)                          \
+  static llvm::FunctionCallee hotspot_##name##_callee(llvm::Module& target_module) {            \
+    llvm::LLVMContext& context = target_module.getContext();                                    \
+    llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, {__VA_ARGS__}, false); \
+    llvm::FunctionCallee callee = target_module.getOrInsertFunction(#name, func_type);          \
+    llvm::cast<llvm::Function>(callee.getCallee())->setCallingConv(llvm::CallingConv::C);       \
+    return callee;                                                                              \
   }
 
-  ALL_HOTSPOT_STUBS(DEF_HOTSPOT_STUB_CALLEE);
+  ALL_HOTSPOT_ROUTINES(DEF_HOTSPOT_ROUTINE_CALLEE);
 
  private:
   static llvm::StringMap<address> _routine_entry; // All the routines.

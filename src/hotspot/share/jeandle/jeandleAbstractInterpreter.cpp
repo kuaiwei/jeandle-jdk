@@ -676,15 +676,15 @@ void JeandleAbstractInterpreter::interpret_block(JeandleBasicBlock* block) {
       case Bytecodes::_fsub: // fall through
       case Bytecodes::_fmul: // fall through
       case Bytecodes::_fdiv: // fall through
-      case Bytecodes::_fneg: arith_op(BasicType::T_FLOAT, code); break;
-      case Bytecodes::_frem: rem_op(BasicType::T_FLOAT, code); break;
+      case Bytecodes::_fneg: // fall through
+      case Bytecodes::_frem: arith_op(BasicType::T_FLOAT, code); break;
 
       case Bytecodes::_dadd: // fall through
       case Bytecodes::_dsub: // fall through
       case Bytecodes::_dmul: // fall through
       case Bytecodes::_ddiv: // fall through
-      case Bytecodes::_dneg: arith_op(BasicType::T_DOUBLE, code); break;
-      case Bytecodes::_drem: rem_op(BasicType::T_DOUBLE, code); break;
+      case Bytecodes::_dneg: // fall through
+      case Bytecodes::_drem: arith_op(BasicType::T_DOUBLE, code); break;
 
       // Conversions:
 
@@ -1071,7 +1071,7 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
     case vmIntrinsicID::_dsin: {
       llvm::FunctionCallee callee = StubRoutines::dsin() != nullptr ? JeandleRuntimeRoutine::hotspot_StubRoutines_dsin_callee(_module) :
                                                                       JeandleRuntimeRoutine::hotspot_SharedRuntime_dsin_callee(_module);
-      _jvm->dpush(call_vm(callee, {_jvm->dpop()}, /* is_leaf */ true));
+      _jvm->dpush(call_runtime_routine(callee, {_jvm->dpop()}, /* is_leaf */ true));
       break;
     }
     default:
@@ -1253,6 +1253,14 @@ void JeandleAbstractInterpreter::arith_op(BasicType type, Bytecodes::Code code) 
     case Bytecodes::_dmul: _jvm->push(type, _ir_builder.CreateFMul(l, r)); break;
     case Bytecodes::_fdiv: // fall through
     case Bytecodes::_ddiv: _jvm->push(type, _ir_builder.CreateFDiv(l, r)); break;
+    case Bytecodes::_frem: {
+      _jvm->fpush( call_runtime_routine(JeandleRuntimeRoutine::hotspot_SharedRuntime_frem_callee(_module), {l, r}, /* is_leaf */ true));
+      break;
+    }
+    case Bytecodes::_drem: {
+      _jvm->dpush(call_runtime_routine(JeandleRuntimeRoutine::hotspot_SharedRuntime_drem_callee(_module), {l, r}, /* is_leaf */ true));
+      break;
+    }
     case Bytecodes::_fneg: // fall through
     case Bytecodes::_dneg: {
       assert(l == nullptr, "only one operand for negation");
@@ -1260,21 +1268,6 @@ void JeandleAbstractInterpreter::arith_op(BasicType type, Bytecodes::Code code) 
       break;
     }
     default: ShouldNotReachHere();
-  }
-}
-
-void JeandleAbstractInterpreter::rem_op(BasicType type, Bytecodes::Code code) {
-  assert(type == BasicType::T_FLOAT || type == BasicType::T_DOUBLE, "unexpected type");
-  assert(code == Bytecodes::_frem || code == Bytecodes::_drem, "unexpected byte code");
-
-  if (code == Bytecodes::_frem) {
-    llvm::Value* r = _jvm->fpop();
-    llvm::Value* l = _jvm->fpop();
-    _jvm->fpush(call_vm(JeandleRuntimeRoutine::hotspot_SharedRuntime_frem_callee(_module), {l, r}, /* is_leaf */ true));
-  } else {
-    llvm::Value* r = _jvm->dpop();
-    llvm::Value* l = _jvm->dpop();
-    _jvm->dpush(call_vm(JeandleRuntimeRoutine::hotspot_SharedRuntime_drem_callee(_module), {l, r}, /* is_leaf */ true));
   }
 }
 

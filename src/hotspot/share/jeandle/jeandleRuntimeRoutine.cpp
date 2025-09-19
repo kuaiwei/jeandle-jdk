@@ -48,8 +48,8 @@
 #define GEN_ASSEMBLY_ROUTINE_BLOB(name) \
   generate_##name();
 
-#define REGISTER_HOTSPOT_STUBS(name, func_entry, ...) \
-  _routine_entry.insert({llvm::StringRef("hotspot_stub_" #name), (address)func_entry});
+#define REGISTER_HOTSPOT_ROUTINE(name, func_entry, ...) \
+  _routine_entry.insert({llvm::StringRef(#name), (address)func_entry});
 
 llvm::StringMap<address> JeandleRuntimeRoutine::_routine_entry;
 
@@ -61,7 +61,7 @@ bool JeandleRuntimeRoutine::generate(llvm::TargetMachine* target_machine, llvm::
   ALL_JEANDLE_ASSEMBLY_ROUTINES(GEN_ASSEMBLY_ROUTINE_BLOB);
 
   // Register hotspot routines
-  ALL_HOTSPOT_ROUTINES(REGISTER_HOTSPOT_ROUTINES);
+  ALL_HOTSPOT_ROUTINES(REGISTER_HOTSPOT_ROUTINE);
 
   return true;
 }
