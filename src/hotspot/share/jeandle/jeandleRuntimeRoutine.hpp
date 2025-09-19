@@ -88,7 +88,7 @@ class JeandleRuntimeRoutine : public AllStatic {
     return _routine_entry.lookup(name);
   }
 
-#define DEF_HOTSPOT_STUB_CALLEE(name, func_entry, return_type, ...) \
+#define DEF_HOTSPOT_ROUTINE_CALLEE(name, func_entry, return_type, ...) \
   static llvm::FunctionCallee hotspot_##name##_callee(llvm::Module& target_module) {                    \
     llvm::LLVMContext& context = target_module.getContext();                                            \
     llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, {__VA_ARGS__}, false);         \
