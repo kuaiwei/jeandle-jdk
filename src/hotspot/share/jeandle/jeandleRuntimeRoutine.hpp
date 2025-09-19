@@ -92,7 +92,7 @@ class JeandleRuntimeRoutine : public AllStatic {
   static llvm::FunctionCallee hotspot_##name##_callee(llvm::Module& target_module) {                    \
     llvm::LLVMContext& context = target_module.getContext();                                            \
     llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, {__VA_ARGS__}, false);         \
-    llvm::FunctionCallee callee = target_module.getOrInsertFunction("hotspot_stub_"  #name, func_type); \
+    llvm::FunctionCallee callee = target_module.getOrInsertFunction(#name, func_type); \
     llvm::cast<llvm::Function>(callee.getCallee())->setCallingConv(llvm::CallingConv::C);               \
     return callee;                                                                                      \
   }
