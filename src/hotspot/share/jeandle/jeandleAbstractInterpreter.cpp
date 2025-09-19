@@ -1084,7 +1084,6 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
 llvm::CallInst* JeandleAbstractInterpreter::call_runtime_routine(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value *> args, bool is_leaf) {
   llvm::CallInst *call = _ir_builder.CreateCall(callee, args);
   call->setCallingConv(llvm::CallingConv::C);
-  call->setTailCall(is_leaf);
   return call;
 }
 

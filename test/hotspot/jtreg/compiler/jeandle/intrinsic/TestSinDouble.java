@@ -68,7 +68,7 @@ public class TestSinDouble {
         checker.checkNext("entry:");
         checker.checkNext("br label %bci_0");
         checker.checkNext("bci_0:");
-        checker.checkNext("tail call double @StubRoutines_dsin");
+        checker.checkNext("call double @StubRoutines_dsin");
         checker.checkNext("ret double");
 
         // intrinsic by SharedRuntime
@@ -98,7 +98,7 @@ public class TestSinDouble {
             checker.checkNext("entry:");
             checker.checkNext("br label %bci_0");
             checker.checkNext("bci_0:");
-            checker.checkNext("tail call double @SharedRuntime_dsin");
+            checker.checkNext("call double @SharedRuntime_dsin");
             checker.checkNext("ret double");
         }
     }
