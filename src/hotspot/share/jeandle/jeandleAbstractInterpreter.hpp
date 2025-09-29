@@ -284,6 +284,8 @@ class JeandleAbstractInterpreter : public StackObj {
   void throw_exception();
 
   void arraylength();
+
+  void do_new();
 };
 
 #endif // SHARE_JEANDLE_ABSTRACT_INTERPRETER_HPP
