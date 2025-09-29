@@ -37,6 +37,8 @@
 #define ALL_JEANDLE_C_ROUTINES(def)                                                                                                             \
   def(safepoint_handler,          llvm::Type::getVoidTy(context), llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))    \
   def(install_exceptional_return, llvm::Type::getVoidTy(context), llvm::PointerType::get(context, llvm::jeandle::AddrSpace::JavaHeapAddrSpace), \
+                                                                  llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))    \
+  def(new_instance,               llvm::Type::getVoidTy(context), llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace),    \
                                                                   llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))
 
 #define ALL_JEANDLE_ASSEMBLY_ROUTINES(def) \
@@ -106,6 +108,8 @@ class JeandleRuntimeRoutine : public AllStatic {
   static void install_exceptional_return(oopDesc* exception, JavaThread* current);
 
   static address get_exception_handler(JavaThread* current);
+
+  static void new_instance(InstanceKlass* klass, JavaThread* current);
 
   // Assembly routine implementations:
 

@@ -33,6 +33,7 @@
 
 #include "jeandle/__hotspotHeadersBegin__.hpp"
 #include "ci/ciMethodBlocks.hpp"
+#include "ci/ciSymbols.hpp"
 #include "logging/log.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
@@ -765,7 +766,7 @@ void JeandleAbstractInterpreter::interpret_block(JeandleBasicBlock* block) {
       case Bytecodes::_invokeinterface:  // fall through
       case Bytecodes::_invokedynamic: invoke(); break;
 
-      case Bytecodes::_new: Unimplemented(); break;
+      case Bytecodes::_new: do_new(); break;
       case Bytecodes::_newarray: Unimplemented(); break;
       case Bytecodes::_anewarray: Unimplemented(); break;
 
@@ -1597,3 +1598,34 @@ void JeandleAbstractInterpreter::do_array_store(Bytecodes::Code code) {
     default: ShouldNotReachHere();
   }
 }
+
+void JeandleAbstractInterpreter::do_new() {
+  bool will_link;
+  ciKlass* klass = _bytecodes.get_klass(will_link);
+  assert(will_link, "_new: not link");
+
+  // Should throw an InstantiationError?
+  if (klass->is_abstract() || klass->is_interface() ||
+      klass->name() == ciSymbols::java_lang_Class() ||
+      _bytecodes.is_unresolved_klass()) {
+    /* TODO: Uncommon trap.
+    uncommon_trap(Deoptimization::Reason_unhandled,
+                  Deoptimization::Action_none,
+                  klass);
+    */
+    Unimplemented();
+    return;
+  }
+  // TODO: cl init barrier
+  jint layout_helper = klass->layout_helper();
+  assert(Klass::layout_helper_is_instance(layout_helper), "Unexpected klass");
+  llvm::Value* size_in_bytes = _ir_builder.getInt32(Klass::layout_helper_size_in_bytes(layout_helper));
+
+  Klass* klass_enc = (Klass*)(klass->constant_encoding());
+  llvm::PointerType* klass_type = llvm::PointerType::get(*_context, llvm::jeandle::AddrSpace::CHeapAddrSpace);
+  llvm::Value* klass_addr = _ir_builder.getInt64((int64_t)klass_enc);
+  llvm::Value* klass_ptr = _ir_builder.CreateIntToPtr(klass_addr, klass_type);
+
+  _jvm->apush(call_java_op("jeandle.new_instance", {klass_ptr, size_in_bytes}));
+}
+

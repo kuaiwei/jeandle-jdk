@@ -291,6 +291,9 @@ class JeandleAbstractInterpreter : public StackObj {
   llvm::Value* do_array_load_inner(BasicType basic_type, llvm::Type* load_type);
   void do_array_store_inner(BasicType basic_type, llvm::Type* store_type, llvm::Value* value);
   llvm::Value* compute_array_element_address(BasicType basic_type, llvm::Type* type);
+
+  // Implementation of _new
+  void do_new();
 };
 
 #endif // SHARE_JEANDLE_ABSTRACT_INTERPRETER_HPP
