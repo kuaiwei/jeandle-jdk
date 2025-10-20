@@ -26,6 +26,9 @@
 ; Jeandle compiler initialization time.
 ;
 
+; We use a null personality function for exception handlers.
+@jeandle.personality = global ptr null
+
 ; Byte offsets of Array<Klass*> structure fields.
 @ArrayKlass.base_offset_in_bytes = external global i32
 @ArrayKlass.length_offset_in_bytes = external global i32
@@ -150,4 +153,15 @@ entry:
   %length_addr = getelementptr inbounds i8, ptr addrspace(1) %array_oop, i32 %length_offset
   %length = load atomic i32, ptr addrspace(1) %length_addr unordered, align 4
   ret i32 %length
+}
+
+declare hotspotcc ptr @jeandle.current_thread()
+declare hotspotcc ptr addrspace(1) @new_typeArray(i32, i32, ptr)
+
+; Implementation of Java newarray operation.
+define hotspotcc ptr addrspace(1) @jeandle.newarray(i32 %type, i32 %length) noinline "lower-phase"="0"  {
+entry:
+  %current_thread = call hotspotcc ptr @jeandle.current_thread()
+  %array_oop = call hotspotcc ptr addrspace(1) @new_typeArray(i32 %type, i32 %length, ptr %current_thread)
+  ret ptr addrspace(1) %array_oop
 }

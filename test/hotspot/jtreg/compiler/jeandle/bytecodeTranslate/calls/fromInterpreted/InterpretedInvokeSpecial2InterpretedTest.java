@@ -18,26 +18,18 @@
  *
  */
 
-#include "jeandle/__llvmHeadersBegin__.hpp"
-#include "llvm/IR/Jeandle/Attributes.h"
-#include "llvm/IR/Jeandle/GCStrategy.h"
-
-#include "jeandle/jeandleUtils.hpp"
-
-void JeandleFuncSig::setup_description(llvm::Function* func, bool is_stub) {
-  func->setCallingConv(llvm::CallingConv::Hotspot_JIT);
-
-  func->setGC(llvm::jeandle::JeandleGC);
-
-  if (!is_stub) {
-    func->addFnAttr("patchable-function-entry", "1");
-
-    llvm::GlobalVariable* personality_func = func->getParent()->getGlobalVariable("jeandle.personality");
-    assert(personality_func != nullptr, "no personality function");
-    func->setPersonalityFn(personality_func);
-  }
-
-  if (UseCompressedOops) {
-    func->addFnAttr(llvm::Attribute::get(func->getContext(), llvm::jeandle::Attribute::UseCompressedOops));
-  }
-}
+/*
+ * @test
+ * @summary check calls from interpreted to interpreted using InvokeSpecial
+ * @modules java.base/jdk.internal.misc
+ * @library /test/lib /
+ * @compile -source 10 -target 10 ../common/InvokeSpecial.java
+ *
+ * @build jdk.test.whitebox.WhiteBox
+ * @run driver jdk.test.lib.helpers.ClassFileInstaller jdk.test.whitebox.WhiteBox
+ * @run main/othervm -XX:+UseJeandleCompiler
+ *    -XX:CompileCommand=compileonly,compiler.jeandle.bytecodeTranslate.calls.common.*::*
+ *    -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:.
+ *    -XX:CompileCommand=exclude,compiler.jeandle.bytecodeTranslate.calls.common.InvokeSpecial::caller -XX:CompileCommand=exclude,compiler.jeandle.bytecodeTranslate.calls.common.InvokeSpecial::callee compiler.jeandle.bytecodeTranslate.calls.common.InvokeSpecial
+ *    -checkCallerCompileLevel 0 -checkCalleeCompileLevel 0
+ */

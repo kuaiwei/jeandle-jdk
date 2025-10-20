@@ -23,6 +23,7 @@
 
 #include "jeandle/jeandleAssembler.hpp"
 #include "jeandle/jeandleCompilation.hpp"
+#include "jeandle/jeandleRuntimeRoutine.hpp"
 
 #include "jeandle/__hotspotHeadersBegin__.hpp"
 #include "code/nativeInst.hpp"
@@ -65,7 +66,12 @@ void JeandleAssembler::patch_static_call_site(int inst_offset, CallSiteInfo* cal
   __ code()->set_insts_end(call_address);
 
   // Patch.
-  __ call(AddressLiteral(call->target(), relocInfo::static_call_type));
+  if (call->target() == SharedRuntime::get_resolve_opt_virtual_call_stub()) {
+    __ call(AddressLiteral(call->target(), relocInfo::opt_virtual_call_type));
+  } else {
+    assert(call->target() == SharedRuntime::get_resolve_static_call_stub(), "illegal call target");
+    __ call(AddressLiteral(call->target(), relocInfo::static_call_type));
+  }
   assert(__ offset() % 4 == 0, "must be aligned for MT-safe patch");
 
   // Recover insts_end.
@@ -125,6 +131,19 @@ void JeandleAssembler::emit_ic_check() {
   int nops_cnt = 8 - ((__ code()->insts_size() - insts_size) & 0x7);
   if (nops_cnt > 0)
     __ nop(nops_cnt);
+}
+
+int JeandleAssembler::emit_exception_handler() {
+  address base = __ start_a_stub(NativeJump::instruction_size);
+  if (base == NULL) {
+    JeandleCompilation::report_jeandle_error("CodeCache is full");
+    return 0;
+  }
+  int offset = __ offset();
+  __ jump(RuntimeAddress(JeandleRuntimeRoutine::get_routine_entry(JeandleRuntimeRoutine::_exception_handler)));
+  assert(__ offset() - offset <= (int)NativeJump::instruction_size, "overflow");
+  __ end_a_stub();
+  return offset;
 }
 
 using LinkKind_x86_64 = llvm::jitlink::x86_64::EdgeKind_x86_64;

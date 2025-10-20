@@ -22,6 +22,7 @@
 #include "jeandle/jeandleRuntimeRoutine.hpp"
 
 #include "jeandle/__hotspotHeadersBegin__.hpp"
+#include "memory/oopFactory.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "runtime/stubRoutines.hpp"
 #include "runtime/frame.hpp"
@@ -142,4 +143,25 @@ JRT_BLOCK_ENTRY(void, JeandleRuntimeRoutine::new_instance(InstanceKlass* klass, 
 
   // inform GC that we won't do card marks for initializing writes.
   SharedRuntime::on_slowpath_allocation_exit(current);
+JRT_END
+
+JRT_ENTRY(address, JeandleRuntimeRoutine::search_landingpad(JavaThread* current))
+  assert(current->exception_oop() != nullptr, "exception oop is found");
+
+  address pc = current->exception_pc();
+
+  nmethod* nm = CodeCache::find_nmethod(pc);
+  assert(nm != nullptr, "No nmethod found in Jeandle exception handler");
+  assert(pc > nm->code_begin(), "sanity check");
+
+  JeandleExceptionHandlerTable exception_table(nm);
+  uint64_t handler_pc_offset = exception_table.find_handler(static_cast<uint64_t>(pc - nm->code_begin()));
+
+  return nm->code_begin() + handler_pc_offset;
+JRT_END
+
+// Array allocation
+JRT_ENTRY(void, JeandleRuntimeRoutine::new_typeArray(int type, int length, JavaThread* current))
+  oop obj = oopFactory::new_typeArray(static_cast<BasicType>(type), length, current);
+  current->set_vm_result(obj);
 JRT_END

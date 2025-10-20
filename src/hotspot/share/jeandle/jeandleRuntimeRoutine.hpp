@@ -39,10 +39,15 @@
   def(install_exceptional_return, llvm::Type::getVoidTy(context), llvm::PointerType::get(context, llvm::jeandle::AddrSpace::JavaHeapAddrSpace), \
                                                                   llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))    \
   def(new_instance,               llvm::Type::getVoidTy(context), llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace),    \
+                                                                  llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))    \
+  def(new_typeArray,              llvm::PointerType::get(context, llvm::jeandle::AddrSpace::JavaHeapAddrSpace),                                 \
+                                                                  llvm::Type::getInt32Ty(context),                                              \
+                                                                  llvm::Type::getInt32Ty(context),                                              \
                                                                   llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace))
 
 #define ALL_JEANDLE_ASSEMBLY_ROUTINES(def) \
-  def(exceptional_return)
+  def(exceptional_return)                  \
+  def(exception_handler)
 
 //-----------------------------------------------------------------------------------------------------------------------------------
 //  name                     | func_entry            | return_type                        | arg_types
@@ -50,6 +55,10 @@
 #define ALL_HOTSPOT_ROUTINES(def)                                                                                                    \
   def(SharedRuntime_dsin,    SharedRuntime::dsin,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(StubRoutines_dsin,     StubRoutines::dsin(),    llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
+  def(SharedRuntime_dcos,    SharedRuntime::dcos,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
+  def(StubRoutines_dcos,     StubRoutines::dcos(),    llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
+  def(SharedRuntime_dtan,    SharedRuntime::dtan,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
+  def(StubRoutines_dtan,     StubRoutines::dtan(),    llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context))         \
   def(SharedRuntime_drem,    SharedRuntime::drem,     llvm::Type::getDoubleTy(context),    llvm::Type::getDoubleTy(context),         \
                                                                                            llvm::Type::getDoubleTy(context))         \
   def(SharedRuntime_frem,    SharedRuntime::frem,     llvm::Type::getFloatTy(context),     llvm::Type::getFloatTy(context),          \
@@ -70,6 +79,11 @@ class JeandleRuntimeRoutine : public AllStatic {
   // Generate all routines.
   static bool generate(llvm::TargetMachine* target_machine, llvm::DataLayout* data_layout);
 
+  static address get_routine_entry(llvm::StringRef name) {
+    assert(_routine_entry.contains(name), "invalid runtime routine: %s", name.str().c_str());
+    return _routine_entry.lookup(name);
+  }
+
 // Define all routines' llvm::FunctionCallee.
 #define DEF_LLVM_CALLEE(c_func, return_type, ...)                                                   \
   static llvm::FunctionCallee c_func##_callee(llvm::Module& target_module) {                        \
@@ -82,10 +96,11 @@ class JeandleRuntimeRoutine : public AllStatic {
 
   ALL_JEANDLE_C_ROUTINES(DEF_LLVM_CALLEE);
 
-  static address get_routine_entry(llvm::StringRef name) {
-    assert(_routine_entry.contains(name), "invalid runtime routine");
-    return _routine_entry.lookup(name);
-  }
+// Define all assembly routine names.
+#define DEF_ASSEMBLY_ROUTINE_NAME(name) \
+  static constexpr const char* _##name = #name;
+
+  ALL_JEANDLE_ASSEMBLY_ROUTINES(DEF_ASSEMBLY_ROUTINE_NAME);
 
 #define DEF_HOTSPOT_ROUTINE_CALLEE(name, func_entry, return_type, ...)                          \
   static llvm::FunctionCallee hotspot_##name##_callee(llvm::Module& target_module) {            \
@@ -111,13 +126,17 @@ class JeandleRuntimeRoutine : public AllStatic {
 
   static void new_instance(InstanceKlass* klass, JavaThread* current);
 
+  static address search_landingpad(JavaThread* current);
+
+  // Array allocation routine
+  static void new_typeArray(int type, int length, JavaThread* current);
+
   // Assembly routine implementations:
 
-#define DEF_ASSEMBLY_ROUTINE(name)               \
-  static void generate_##name();                 \
-  static constexpr const char* _##name = #name;
+#define DEF_GENERETE_ASSEMBLY_ROUTINE(name) \
+  static void generate_##name();
 
-  ALL_JEANDLE_ASSEMBLY_ROUTINES(DEF_ASSEMBLY_ROUTINE);
+  ALL_JEANDLE_ASSEMBLY_ROUTINES(DEF_GENERETE_ASSEMBLY_ROUTINE);
 };
 
 #endif // SHARE_JEANDLE_RUNTIME_ROUTINE_HPP
