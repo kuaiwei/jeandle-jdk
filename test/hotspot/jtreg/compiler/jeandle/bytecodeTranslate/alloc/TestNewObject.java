@@ -85,7 +85,7 @@ public class TestNewObject {
         long u;
         long v;
         long w;
-        long x = 42l;
+        long x = 42L;
         long y;
         long z;
 
