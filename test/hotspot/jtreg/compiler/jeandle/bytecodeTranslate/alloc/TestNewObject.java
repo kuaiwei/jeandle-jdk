@@ -40,7 +40,7 @@ public class TestNewObject {
         if (stress) {
             BigClass obj = new BigClass();
             // stress allocate big object in loop to trigger a GC
-            stress_allocate_java_instance(100_000);
+            Asserts.assertEquals(stress_allocate_java_instance(100_000), 42L * 100_000);
         } else {
             Asserts.assertEquals(allocate_java_instance(), 42);
         }
@@ -85,7 +85,7 @@ public class TestNewObject {
         long u;
         long v;
         long w;
-        long x;
+        long x = 42l;
         long y;
         long z;
 
