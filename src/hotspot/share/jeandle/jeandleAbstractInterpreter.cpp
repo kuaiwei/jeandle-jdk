@@ -1680,7 +1680,6 @@ void JeandleAbstractInterpreter::do_new() {
   ciKlass* klass = _bytecodes.get_klass(will_link);
   assert(will_link, "_new: not link");
 
-  // Should throw an InstantiationError?
   if (klass->is_abstract() || klass->is_interface() ||
       klass->name() == ciSymbols::java_lang_Class() ||
       _bytecodes.is_unresolved_klass()) {

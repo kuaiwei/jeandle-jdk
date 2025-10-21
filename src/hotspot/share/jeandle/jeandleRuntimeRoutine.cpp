@@ -29,17 +29,17 @@
 #include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/safepoint.hpp"
 
-// This should be called in an assertion at the start of OptoRuntime routines
+// This should be called in an assertion at the start of JeandleRuntime routines
 // which are entered from compiled code (all of them)
 #ifdef ASSERT
-static bool check_compiled_frame(JavaThread* thread) {
+static bool check_jeandle_compiled_frame(JavaThread* thread) {
   assert(thread->last_frame().is_runtime_frame(), "cannot call runtime directly from compiled code");
   RegisterMap map(thread,
                   RegisterMap::UpdateMap::skip,
                   RegisterMap::ProcessFrames::include,
                   RegisterMap::WalkContinuation::skip);
   frame caller = thread->last_frame().sender(&map);
-  assert(caller.is_compiled_frame(), "not being called from compiled like code");
+  assert(caller.is_jeandle_compiled_frame(), "not being called from Jeandle compiled like code");
   return true;
 }
 #endif // ASSERT
@@ -114,7 +114,7 @@ JRT_BLOCK_ENTRY(void, JeandleRuntimeRoutine::new_instance(InstanceKlass* klass, 
 #ifndef PRODUCT
     SharedRuntime::_new_instance_ctr++;         // new instance requires GC
 #endif
-    assert(check_compiled_frame(current), "incorrect caller");
+    assert(check_jeandle_compiled_frame(current), "incorrect caller");
 
     // These checks are cheap to make and support reflective allocation.
     int lh = klass->layout_helper();
