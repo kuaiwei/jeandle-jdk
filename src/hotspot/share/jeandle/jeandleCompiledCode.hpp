@@ -41,6 +41,46 @@
 #include "ci/ciMethod.hpp"
 #include "code/exceptionHandlerTable.hpp"
 
+enum JvmStackValueType {
+  LocalType = 0,
+  StackType = 1,
+  ArgumentType = 2,
+  MonitorType = 3,
+  ScalarValueType = 4,
+  LastType = ScalarValueType + 1
+};
+
+class DeoptValueEncode {
+  friend class JeandleCompiledCode;
+public:
+  DeoptValueEncode(int index, JvmStackValueType stack_type, BasicType basic_type):
+      _index(index), _stack_type(stack_type), _basic_type(basic_type)
+  {
+    assert(_stack_type == LocalType || _stack_type == StackType, "Unsupported stack type");
+  }
+
+  uint64_t encode() {
+    // encode format
+    // |--- index ---|--- stack_type ---|--- basic_type ---|
+    // |0          31|32              47|48              63|
+    return ((uint64_t)_index << 32) | ((uint64_t)(_stack_type << 16)) | (uint64_t)(_basic_type);
+  }
+
+  static DeoptValueEncode decode(uint64_t encode) {
+    int index = (int)(encode >> 32);
+    assert(index >= 0, "must be");
+    int val_type = (int)((encode & 0xffff0000UL) >> 16);
+    assert(val_type >= 0 && val_type < JvmStackValueType::LastType, "must be");
+    int basic_type = (int)((encode & 0xffffUL));
+    assert(basic_type >= 0 && basic_type <= BasicType::T_ILLEGAL, "must be");
+    return {index, (JvmStackValueType)(val_type), (BasicType)(basic_type)};
+  }
+private:
+  int _index;
+  JvmStackValueType _stack_type;
+  BasicType _basic_type;
+};
+
 class CallSiteInfo : public JeandleCompilationResourceObj {
  public:
   CallSiteInfo(JeandleCompiledCall::Type type,
@@ -71,6 +111,22 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
 
   // Used to distinguish each call site in stackmaps.
   uint64_t _statepoint_id;
+};
+
+class JeandleOopMap {
+public:
+  JeandleOopMap(OopMap* oop_map, GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack) :
+      _oop_map(oop_map), _locals(locals), _stack(stack) {
+  }
+
+  OopMap* oop_map() const { return _oop_map; }
+  GrowableArray<ScopeValue*>* locals() const { return _locals; }
+  GrowableArray<ScopeValue*>* stack() const { return _stack; }
+
+private:
+  OopMap* _oop_map;
+  GrowableArray<ScopeValue*>* _locals;
+  GrowableArray<ScopeValue*>* _stack;
 };
 
 using ObjectBuffer = llvm::MemoryBuffer;
@@ -166,12 +222,40 @@ class JeandleCompiledCode : public StackObj {
   address lookup_const_section(llvm::StringRef name, JeandleAssembler& assembler);
   address resolve_const_edge(LinkBlock& block, LinkEdge& edge, JeandleAssembler& assembler);
 
-  OopMap* build_oop_map(StackMapParser::record_iterator& record);
+  JeandleOopMap* build_oop_map(StackMapParser& stackmaps, StackMapParser::record_iterator& record, CallSiteInfo* call_info);
+  void fill_scope_values(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
+                         GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack);
 
   void build_exception_handler_table();
   void build_implicit_exception_table();
 
   int frame_size_in_slots();
+};
+
+
+class StackMapUtil : public AllStatic {
+public:
+  static bool is_constant(const StackMapParser::LocationAccessor& location) {
+    return location.getKind() == StackMapParser::LocationKind::Constant
+        || location.getKind() == StackMapParser::LocationKind::ConstantIndex;
+  }
+  static bool is_stack(const StackMapParser::LocationAccessor& location) {
+    return location.getKind() == StackMapParser::LocationKind::Indirect;
+  }
+  static bool is_register(const StackMapParser::LocationAccessor& location) {
+    return location.getKind() == StackMapParser::LocationKind::Register;
+  }
+  static bool stack_offset(const StackMapParser::LocationAccessor& location) {
+    if (is_stack(location)) {
+      return location.getOffset();
+    } else {
+      ShouldNotReachHere();
+    }
+  }
+  static uint32_t getConstantUint(const StackMapParser& parser, const StackMapParser::LocationAccessor& location);
+  static uint64_t getConstantUlong(const StackMapParser& parser, const StackMapParser::LocationAccessor& location);
+  static float    getConstantFloat(const StackMapParser& parser, const StackMapParser::LocationAccessor& location);
+  static double   getConstantDouble(const StackMapParser& parser, const StackMapParser::LocationAccessor& location);
 };
 
 #endif // SHARE_JEANDLE_COMPILED_CODE_HPP
