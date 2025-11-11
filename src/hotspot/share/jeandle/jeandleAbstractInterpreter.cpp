@@ -139,7 +139,7 @@ bool JeandleVMState::update_phi_nodes(JeandleVMState* income_jvm, llvm::BasicBlo
 void JeandleVMState::push(BasicType type, llvm::Value* value) {
   assert(value != nullptr, "null value to push");
   assert(value->getType() == JeandleType::java2llvm(type, *_context), "type must match");
-  _stack.push_back(TypedValue(type,value));
+  _stack.push_back(TypedValue(type, value));
   if (is_double_word_type(type)) {
     _stack.push_back(TypedValue::null_value());
   }
@@ -152,8 +152,7 @@ llvm::Value* JeandleVMState::pop(BasicType type) {
   }
   TypedValue v = _stack.back();
   assert(v.value() != nullptr, "null value to pop");
-  assert(v.value()->getType() == JeandleType::java2llvm(type, *_context), "type must match");
-  assert(v.is_compatible(type), "Must match basic type");
+  assert(v.value_type() == TypedValue::as_ValueType(type), "type must match");
   _stack.pop_back();
   return v.value();
 }
@@ -164,8 +163,7 @@ llvm::Value* JeandleVMState::load(BasicType type, int index) {
   assert(!is_double_word_type(type) || _locals[index + 1].is_null(), "hi-word of doubleword value must be null");
   TypedValue v = _locals[index];
   assert(v.value() != nullptr, "null value to load");
-  assert(v.is_compatible(type), "Must match basic type");
-  assert(v.value()->getType() == JeandleType::java2llvm(type, *_context), "type must match");
+  assert(v.value_type() == TypedValue::as_ValueType(type), "type must match");
   return v.value();
 }
 
@@ -268,13 +266,13 @@ void JeandleBasicBlock::initialize_VM_state_from(JeandleVMState* incoming_state,
 
   for (size_t i = 0; i < incoming_state->stack_size(); i++) {
     if (incoming_state->stack_at(i) == nullptr) {
-      _jvm->raw_push(T_VOID, nullptr);
+      _jvm->raw_push(TypedValue::null_value());
       continue;
     }
 
     llvm::PHINode* phi_node = ir_builder.CreatePHI(incoming_state->stack_at(i)->getType(), 2);
     phi_node->addIncoming(incoming_state->stack_at(i), incoming_block);
-    _jvm->raw_push(incoming_state->stack_type_at(i), phi_node);
+    _jvm->raw_push(TypedValue(incoming_state->stack_type_at(i), phi_node));
   }
 }
 
