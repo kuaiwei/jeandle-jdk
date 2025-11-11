@@ -39,52 +39,6 @@
 #include "utilities/bitMap.inline.hpp"
 #include "jeandle/jeandleType.hpp"
 
-/* A pair of BasicType and llvm::Value* used by JeandleVMState */
-class TypedValue {
-private:
-  BasicType _basic_type;
-  llvm::Value * _value;
-public:
-  // type conversion like c1_ValueType
-  static BasicType as_ValueType(BasicType bt) {
-    switch (bt) {
-      case T_BYTE   :
-      case T_CHAR   :
-      case T_SHORT  :
-      case T_BOOLEAN:
-      case T_INT    :
-        return T_INT;
-      case T_VOID   :
-      case T_LONG   :
-      case T_FLOAT  :
-      case T_DOUBLE :
-        return bt;
-      case T_ARRAY  :
-      case T_OBJECT :
-        return T_OBJECT;
-      case T_ADDRESS:
-      case T_ILLEGAL:
-      default       :
-        ShouldNotReachHere();
-    }
-  }
-
-  TypedValue(BasicType type, llvm::Value* value) : _basic_type(type), _value(value) {
-    if (value == nullptr) {
-      assert(type == T_VOID, "value is null");
-    } else {
-      assert(value->getType() == JeandleType::java2llvm(type, value->getContext()), "type does not match");
-    }
-  }
-  TypedValue() : _basic_type(T_VOID), _value(nullptr) {}
-
-  static TypedValue null_value() { return TypedValue(T_VOID, nullptr); }
-  bool   is_null() const { return _basic_type == T_VOID && _value == nullptr; }
-
-  BasicType value_type() const { return as_ValueType(_basic_type); }
-  llvm::Value*   value() const { return _value; }
-};
-
 // Used by the abstract interpreter to trace JVM states.
 class JeandleBasicBlock;
 class JeandleVMState : public JeandleCompilationResourceObj {
