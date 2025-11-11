@@ -61,7 +61,7 @@ class JeandleVMState : public JeandleCompilationResourceObj {
   size_t max_stack() const { return _stack.capacity(); }
 
   llvm::Value* stack_at(int index) { return _stack[index].value(); }
-  BasicType    stack_type_at(int index) { return _stack[index].value_type(); }
+  BasicType    stack_type_at(int index) { return _stack[index].computational_type(); }
 
   void push(BasicType type, llvm::Value* value);
   llvm::Value* pop(BasicType type);
@@ -93,7 +93,7 @@ class JeandleVMState : public JeandleCompilationResourceObj {
   void invalidate_local(int index) { _locals[index] = TypedValue(T_VOID, nullptr); }
 
   llvm::Value* locals_at(int index) { return _locals[index].value(); }
-  BasicType locals_type_at(int index) { return _locals[index].value_type(); }
+  BasicType locals_type_at(int index) { return _locals[index].computational_type(); }
   void set_locals_at(int index, BasicType bt, llvm::Value* value) { _locals[index] = TypedValue(bt, value); }
 
   llvm::Value* iload(int index) { return load(BasicType::T_INT, index); }
