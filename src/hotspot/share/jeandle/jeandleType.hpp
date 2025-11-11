@@ -104,8 +104,8 @@ public:
   static TypedValue null_value() { return TypedValue(T_VOID, nullptr); }
   bool   is_null() const { return _basic_type == T_VOID && _value == nullptr; }
 
-  BasicType value_type() const { return JeandleType::actual2computational(_basic_type); }
-  llvm::Value*   value() const { return _value; }
+  BasicType computational_type() const { return JeandleType::actual2computational(_basic_type); }
+  llvm::Value*           value() const { return _value; }
 };
 
 #endif // SHARE_JEANDLE_TYPE_HPP

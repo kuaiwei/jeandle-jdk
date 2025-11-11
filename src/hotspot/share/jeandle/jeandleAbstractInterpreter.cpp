@@ -152,7 +152,7 @@ llvm::Value* JeandleVMState::pop(BasicType type) {
   }
   TypedValue v = _stack.back();
   assert(v.value() != nullptr, "null value to pop");
-  assert(v.value_type() == JeandleType::actual2computational(type), "type must match");
+  assert(v.computational_type() == JeandleType::actual2computational(type), "type must match");
   _stack.pop_back();
   return v.value();
 }
@@ -163,7 +163,7 @@ llvm::Value* JeandleVMState::load(BasicType type, int index) {
   assert(!is_double_word_type(type) || _locals[index + 1].is_null(), "hi-word of doubleword value must be null");
   TypedValue v = _locals[index];
   assert(v.value() != nullptr, "null value to load");
-  assert(v.value_type() == JeandleType::actual2computational(type), "type must match");
+  assert(v.computational_type() == JeandleType::actual2computational(type), "type must match");
   return v.value();
 }
 
