@@ -89,9 +89,8 @@ class TypedValue {
 private:
   BasicType _basic_type;
   llvm::Value * _value;
-public:
-  // type conversion like c1_ValueType
 
+public:
   TypedValue(BasicType type, llvm::Value* value) : _basic_type(type), _value(value) {
     if (value == nullptr) {
       assert(type == T_VOID, "value is null");
@@ -105,6 +104,7 @@ public:
   bool   is_null() const { return _basic_type == T_VOID && _value == nullptr; }
 
   BasicType computational_type() const { return JeandleType::actual2computational(_basic_type); }
+  BasicType        actual_type() const { return _basic_type; }
   llvm::Value*           value() const { return _value; }
 };
 
