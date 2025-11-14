@@ -261,7 +261,7 @@ void JeandleBasicBlock::initialize_VM_state_from(JeandleVMState* incoming_state,
 
     llvm::PHINode* phi_node = ir_builder.CreatePHI(incoming_state->locals_at(i)->getType(), 2);
     phi_node->addIncoming(incoming_state->locals_at(i), incoming_block);
-    _jvm->set_locals_at(i, incoming_state->locals_type_at(i), phi_node);
+    _jvm->set_locals_at(i, TypedValue(incoming_state->locals_type_at(i), phi_node));
   }
 
   for (size_t i = 0; i < incoming_state->stack_size(); i++) {

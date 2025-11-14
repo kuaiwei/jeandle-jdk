@@ -97,7 +97,7 @@ class JeandleVMState : public JeandleCompilationResourceObj {
   llvm::Value* locals_at(int index) { return _locals[index].value(); }
   BasicType locals_type_at(int index) { return _locals[index].actual_type(); }
   BasicType locals_computational_type_at(int index) { return _locals[index].computational_type(); }
-  void set_locals_at(int index, BasicType bt, llvm::Value* value) { _locals[index] = TypedValue(bt, value); }
+  void set_locals_at(int index, TypedValue value) { _locals[index] = value; }
 
   llvm::Value* iload(int index) { return load(BasicType::T_INT, index); }
   void istore(int index, llvm::Value* value) { store(BasicType::T_INT, index, value); }

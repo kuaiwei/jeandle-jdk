@@ -76,8 +76,6 @@ class JeandleType : public AllStatic {
       case T_ARRAY  :
       case T_OBJECT :
         return T_OBJECT;
-      case T_ADDRESS:
-      case T_ILLEGAL:
       default       :
         ShouldNotReachHere();
     }
@@ -93,15 +91,15 @@ private:
 public:
   TypedValue(BasicType type, llvm::Value* value) : _basic_type(type), _value(value) {
     if (value == nullptr) {
-      assert(type == T_VOID, "value is null");
+      assert(type == T_ILLEGAL, "value is null");
     } else {
       assert(value->getType() == JeandleType::java2llvm(type, value->getContext()), "type does not match");
     }
   }
-  TypedValue() : _basic_type(T_VOID), _value(nullptr) {}
+  TypedValue() : _basic_type(T_ILLEGAL), _value(nullptr) {}
 
-  static TypedValue null_value() { return TypedValue(T_VOID, nullptr); }
-  bool   is_null() const { return _basic_type == T_VOID && _value == nullptr; }
+  static TypedValue null_value() { return TypedValue(T_ILLEGAL, nullptr); }
+  bool   is_null() const { return _basic_type == T_ILLEGAL && _value == nullptr; }
 
   BasicType computational_type() const { return JeandleType::actual2computational(_basic_type); }
   BasicType        actual_type() const { return _basic_type; }
