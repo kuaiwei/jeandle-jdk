@@ -83,6 +83,10 @@ class JeandleVMState : public JeandleCompilationResourceObj {
   // Untyped manipulation (for dup_x1, etc.)
   void raw_push(llvm::Value* t) { _stack.push_back(t); }
   llvm::Value* raw_pop() { llvm::Value* v = _stack.back(); _stack.pop_back(); return v; }
+  llvm::Value* raw_peek(size_t depth = 0) {
+    assert(depth < _stack.size(), "depth out of range");
+    return _stack[_stack.size() - depth - 1];
+  }
 
   // Local variables operations:
 
@@ -215,6 +219,8 @@ class BasicBlockBuilder : public JeandleCompilationResourceObj {
     parent_block->add_successor(child_block);
   }
 
+  void remove_dead_blocks();
+
  private:
   llvm::SmallVector<JeandleBasicBlock*> _bci2block;
   ciMethod* _method;
@@ -327,8 +333,8 @@ class JeandleAbstractInterpreter : public StackObj {
   void arraylength();
 
   // Implementation of array *aload and *astore bytecodes.
-  void do_array_load(Bytecodes::Code code);
-  void do_array_store(Bytecodes::Code code);
+  void do_array_load(BasicType basic_type);
+  void do_array_store(BasicType basic_type);
   llvm::Value* do_array_load_inner(BasicType basic_type, llvm::Type* load_type);
   void do_array_store_inner(BasicType basic_type, llvm::Type* store_type, llvm::Value* value);
   llvm::Value* compute_array_element_address(BasicType basic_type, llvm::Type* type);
