@@ -96,7 +96,7 @@ class JeandleVMState : public JeandleCompilationResourceObj {
   size_t locals_size() const { return _locals.size(); }
   size_t max_locals() const { return _locals.size(); }
 
-  void invalidate_local(int index) { _locals[index] = TypedValue(T_VOID, nullptr); }
+  void invalidate_local(int index) { _locals[index] = TypedValue::null_value(); }
 
   llvm::Value* locals_at(int index) { return _locals[index].value(); }
   BasicType locals_type_at(int index) { return _locals[index].actual_type(); }
