@@ -1256,7 +1256,7 @@ void JeandleAbstractInterpreter::invoke() {
                                                  std::to_string(id));
   llvm::Attribute patch_bytes_attr = llvm::Attribute::get(*_context,
                                                  llvm::jeandle::Attribute::StatepointNumPatchBytes,
-                                                 std::to_string( JeandleCompiledCall::call_site_patch_size(call_type)));
+                                                 std::to_string(JeandleCompiledCall::call_site_patch_size(call_type)));
   invoke->addFnAttr(id_attr);
   invoke->addFnAttr(patch_bytes_attr);
 
