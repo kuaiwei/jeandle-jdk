@@ -1230,12 +1230,12 @@ void JeandleAbstractInterpreter::invoke() {
 
   // Record this call.
   uint32_t id = _compiled_code.next_statepoint_id();
-  _compiled_code.push_non_routine_call_site(new CallSiteInfo(call_type, dest, _bytecodes.cur_bci(), id));
+  _compiled_code.push_non_routine_call_site(new CallSiteInfo(call_type, dest, _bytecodes.cur_bci(), true /* _has_deopt_operands */, id));
 
   // Every invoke instruction may throw exceptions, handle them here.
   DispatchedDest dispatched = dispatch_exception_for_invoke();
 
-  // Create the invoke instruction.
+  // Create the invoke instruction with deopt operands.
   llvm::InvokeInst* call = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args);
   llvm::OperandBundleDef deoptBundle("deopt", _jvm->deopt_args(_ir_builder));
   llvm::InvokeInst* invoke = static_cast<llvm::InvokeInst *>(llvm::CallBase::addOperandBundle(call, id, deoptBundle, _ir_builder.GetInsertPoint()));

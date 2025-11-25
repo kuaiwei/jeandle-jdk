@@ -86,10 +86,12 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
   CallSiteInfo(JeandleCompiledCall::Type type,
                address target,
                int bci,
+               bool has_deopt_operands = false,
                uint64_t statepoint_id = llvm::StatepointDirectives::DefaultStatepointID) :
                _type(type),
                _target(target),
                _bci(bci),
+               _has_deopt_operands(has_deopt_operands),
                _statepoint_id(statepoint_id) {
 #ifdef ASSERT
     // We don't need to assign a unique statepoint id for each routine call site, only call type and target is used.
@@ -103,11 +105,13 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
   uint64_t statepoint_id() const { return _statepoint_id; }
   address target() const { return _target; }
   int bci() const { return _bci; }
+  bool has_deopt_operands() const { return _has_deopt_operands; }
 
  private:
   JeandleCompiledCall::Type _type;
   address _target;
   int _bci;
+  bool _has_deopt_operands;
 
   // Used to distinguish each call site in stackmaps.
   uint64_t _statepoint_id;

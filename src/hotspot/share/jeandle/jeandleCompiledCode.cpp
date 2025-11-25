@@ -486,10 +486,6 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
 JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, StackMapParser::record_iterator& record, CallSiteInfo* call_info) {
   assert(_frame_size > 0, "frame size must be greater than zero");
   OopMap* oop_map = new OopMap(frame_size_in_slots(), 0);
-  bool is_method_compilation = this->_method != nullptr;
-  // TODO: now we just add deopt operands for java call, but it should be added for other routine call like allocation instance
-  bool is_java_method_invocation = call_info->type() == JeandleCompiledCall::Type::STATIC_CALL
-                                || call_info->type() == JeandleCompiledCall::Type::DYNAMIC_CALL;
 
   // It comes from observation of llvm stackmap, it may be changed in future.
   //   The first 2 constants are ignored, the third constant is the number of deopt operands
@@ -501,7 +497,8 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
   assert(first.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
   assert(second.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
   int num_deopts = 0;
-  if (is_method_compilation && is_java_method_invocation) {
+  if (call_info->has_deopt_operands()) {
+    assert(this->_method != nullptr, "must be method compilation");
     auto third = *(location++);
     assert(third.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
     num_deopts = third.getSmallConstant();
@@ -509,11 +506,9 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
   }
 
   // build scope values
-  GrowableArray<ScopeValue*>* locals = is_method_compilation ? new GrowableArray<ScopeValue*>(_method->max_locals()) : nullptr;
-  GrowableArray<ScopeValue*>* stack = is_method_compilation ? new GrowableArray<ScopeValue*>(_method->max_stack()) : nullptr;
+  GrowableArray<ScopeValue*>* locals = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_locals()) : nullptr;
+  GrowableArray<ScopeValue*>* stack  = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_stack()) : nullptr;
   while (num_deopts > 0 && location != record->location_end()) {
-    assert(is_method_compilation, "must be method compilation");
-
     // deopt arguments are stored as pair, 1st is encode, 2nd is the value
     assert(location != record->location_end(), "must be in range");
     auto encode_location = *(location++);
