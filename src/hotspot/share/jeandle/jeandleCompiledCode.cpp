@@ -402,18 +402,16 @@ static VMReg resolve_vmreg(const StackMapParser::LocationAccessor& location, Sta
   return nullptr;
 }
 
-void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
-  GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack) {
-  assert (encode._stack_type == JvmStackValueType::LocalType || encode._stack_type == JvmStackValueType::StackType, "other type are not supported");
-  GrowableArray<ScopeValue*>* array = encode._stack_type == JvmStackValueType::LocalType ? locals : stack;
+void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
+  GrowableArray<ScopeValue*>* array, int& index) {
   assert(array != nullptr, "sanity");
   bool is_constant = StackMapUtil::is_constant(location);
   switch (encode._basic_type) {
   case T_INT: {
     if (is_constant) {
-      array->at_put_grow(encode._index, new ConstantIntValue(StackMapUtil::getConstantUint(stackmaps, location)));
+      array->at_put_grow(index++, new ConstantIntValue(StackMapUtil::getConstantUint(stackmaps, location)));
     } else {
-      array->at_put_grow(encode._index,
+      array->at_put_grow(index++,
         StackMapUtil::is_stack(location)
         ? new LocationValue(Location::new_stk_loc(Location::Type::normal, StackMapUtil::stack_offset(location)))
         : new LocationValue(Location::new_reg_loc(Location::Type::normal, resolve_vmreg(location, location.getKind())))
@@ -422,11 +420,12 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
     break;
   }
   case T_LONG: {
-    // TODO: we need 2 slots for long value
+    // 2 stack slots for long type in LP64
+    array->at_put_grow(index++, new ConstantIntValue((jint)0));
     if (is_constant) {
-      array->at_put_grow(encode._index, new ConstantLongValue(StackMapUtil::getConstantUlong(stackmaps, location)));
+      array->at_put_grow(index++, new ConstantLongValue(StackMapUtil::getConstantUlong(stackmaps, location)));
     } else {
-      array->at_put_grow(encode._index,
+      array->at_put_grow(index++,
         StackMapUtil::is_stack(location)
         ? new LocationValue(Location::new_stk_loc(Location::Type::lng, StackMapUtil::stack_offset(location)))
         : new LocationValue(Location::new_reg_loc(Location::Type::lng, resolve_vmreg(location, location.getKind())))
@@ -436,9 +435,9 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
   }
   case T_FLOAT: {
     if (is_constant) {
-      array->at_put_grow(encode._index, new ConstantIntValue(jint_cast(StackMapUtil::getConstantFloat(stackmaps, location))));
+      array->at_put_grow(index++, new ConstantIntValue(jint_cast(StackMapUtil::getConstantFloat(stackmaps, location))));
     } else {
-      array->at_put_grow(encode._index,
+      array->at_put_grow(index++,
         StackMapUtil::is_stack(location)
         ? new LocationValue(Location::new_stk_loc(Location::Type::normal, StackMapUtil::stack_offset(location)))
         : new LocationValue(Location::new_reg_loc(Location::Type::normal, resolve_vmreg(location, location.getKind())))
@@ -447,11 +446,12 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
     break;
   }
   case T_DOUBLE: {
-    // TODO: we need 2 slots for double value
+    // 2 stack slots for double type in LP64
+    array->at_put_grow(index++, new ConstantIntValue((jint)0));
     if (is_constant) {
-      array->at_put_grow(encode._index, new ConstantDoubleValue(StackMapUtil::getConstantDouble(stackmaps, location)));
+      array->at_put_grow(index++, new ConstantDoubleValue(StackMapUtil::getConstantDouble(stackmaps, location)));
     } else {
-      array->at_put_grow(encode._index,
+      array->at_put_grow(index++,
         StackMapUtil::is_stack(location)
         ? new LocationValue(Location::new_stk_loc(Location::Type::dbl, StackMapUtil::stack_offset(location)))
         : new LocationValue(Location::new_reg_loc(Location::Type::dbl, resolve_vmreg(location, location.getKind())))
@@ -461,9 +461,15 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
   }
   case T_OBJECT: {
     if (is_constant) {
-      // array->at_put_grow(encode._index, new ConstantOopReadValue(StackMapUtil::getConstantDouble(stackmaps, location)));
+      uint64_t v = StackMapUtil::getConstantUlong(stackmaps, location);
+      if (v == 0L) {
+        array->at_put_grow(index++, new ConstantOopWriteValue(nullptr));
+      } else {
+        /* No constant oop is embedding into code */
+        ShouldNotReachHere();
+      }
     } else {
-      array->at_put_grow(encode._index,
+      array->at_put_grow(index++,
         StackMapUtil::is_stack(location)
         ? new LocationValue(Location::new_stk_loc(Location::Type::oop, StackMapUtil::stack_offset(location)))
         : new LocationValue(Location::new_reg_loc(Location::Type::oop, resolve_vmreg(location, location.getKind())))
@@ -473,9 +479,9 @@ void JeandleCompiledCode::fill_scope_values(const StackMapParser& stackmaps, con
   }
   case T_ILLEGAL: {
     uint32_t val = StackMapUtil::getConstantUint(stackmaps, location);
-    assert(val == 0, "must be zero for T_VOID");
+    assert(val == 0, "must be zero for T_ILLEGAL");
     // put an illegal value
-    array->at_put_grow(encode._index, new LocationValue(Location()));
+    array->at_put_grow(index++, new LocationValue(Location()));
     break;
   }
   default:
@@ -488,7 +494,7 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
   OopMap* oop_map = new OopMap(frame_size_in_slots(), 0);
 
   // It comes from observation of llvm stackmap, it may be changed in future.
-  //   The first 2 constants are ignored, the third constant is the number of deopt operands
+  // The first 2 constants are ignored, the third constant is the number of deopt operands
   auto location = record->location_begin();
   auto first = *(location++);
   assert(location != record->location_end(), "must be in range");
@@ -508,15 +514,21 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
   // build scope values
   GrowableArray<ScopeValue*>* locals = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_locals()) : nullptr;
   GrowableArray<ScopeValue*>* stack  = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_stack()) : nullptr;
-  while (num_deopts > 0 && location != record->location_end()) {
-    // deopt arguments are stored as pair, 1st is encode, 2nd is the value
+  int local_index = 0;
+  int stack_index = 0;
+  while (num_deopts > 0) {
+    // deopt arguments are passed as a pair, 1st is encode, 2nd is real value
     assert(location != record->location_end(), "must be in range");
     auto encode_location = *(location++);
     assert(location != record->location_end(), "must be in range");
     auto value_location = *(location++);
     uint64_t encode = StackMapUtil::getConstantUlong(stackmaps, encode_location);
     DeoptValueEncode enc = DeoptValueEncode::decode(encode);
-    fill_scope_values(stackmaps, enc, value_location, locals, stack);
+    assert(enc._stack_type == DeoptValueEncode::LocalType || enc._stack_type == DeoptValueEncode::StackType, "Unsupported type");
+    bool is_local = enc._stack_type == DeoptValueEncode::LocalType;
+    fill_one_scope_value(stackmaps, enc, value_location,
+      is_local ? locals : stack,
+      is_local ? local_index : stack_index);
     num_deopts -= 2;
   }
 

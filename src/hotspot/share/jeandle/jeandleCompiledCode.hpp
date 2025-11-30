@@ -41,20 +41,20 @@
 #include "ci/ciMethod.hpp"
 #include "code/exceptionHandlerTable.hpp"
 
-enum JvmStackValueType {
-  LocalType = 0,
-  StackType = 1,
-  ArgumentType = 2,
-  MonitorType = 3,
-  ScalarValueType = 4,
-  LastType = ScalarValueType + 1
-};
 
 class DeoptValueEncode {
   friend class JeandleCompiledCode;
 public:
-  DeoptValueEncode(int index, JvmStackValueType stack_type, BasicType basic_type):
-      _index(index), _stack_type(stack_type), _basic_type(basic_type)
+  enum DeoptValueType {
+    LocalType = 0,
+    StackType = 1,
+    ArgumentType = 2,
+    MonitorType = 3,
+    ScalarValueType = 4,
+    LastType = ScalarValueType + 1
+  };
+  DeoptValueEncode(int index, DeoptValueType stack_type, BasicType basic_type):
+    _index(index), _stack_type(stack_type), _basic_type(basic_type)
   {
     assert(_stack_type == LocalType || _stack_type == StackType, "Unsupported stack type");
   }
@@ -70,14 +70,14 @@ public:
     int index = (int)(encode >> 32);
     assert(index >= 0, "must be");
     int val_type = (int)((encode & 0xffff0000UL) >> 16);
-    assert(val_type >= 0 && val_type < JvmStackValueType::LastType, "must be");
+    assert(val_type >= 0 && val_type < DeoptValueType::LastType, "must be");
     int basic_type = (int)((encode & 0xffffUL));
     assert(basic_type >= 0 && basic_type <= BasicType::T_ILLEGAL, "must be");
-    return {index, (JvmStackValueType)(val_type), (BasicType)(basic_type)};
+    return {index, (DeoptValueType)(val_type), (BasicType)(basic_type)};
   }
 private:
   int _index;
-  JvmStackValueType _stack_type;
+  DeoptValueType _stack_type;
   BasicType _basic_type;
 };
 
@@ -227,8 +227,8 @@ class JeandleCompiledCode : public StackObj {
   address resolve_const_edge(LinkBlock& block, LinkEdge& edge, JeandleAssembler& assembler);
 
   JeandleOopMap* build_oop_map(StackMapParser& stackmaps, StackMapParser::record_iterator& record, CallSiteInfo* call_info);
-  void fill_scope_values(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
-                         GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack);
+  void fill_one_scope_value(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
+                            GrowableArray<ScopeValue*>* array, int& current_index);
 
   void build_exception_handler_table();
   void build_implicit_exception_table();

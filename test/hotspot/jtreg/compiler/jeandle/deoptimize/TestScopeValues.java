@@ -55,12 +55,12 @@ public class TestScopeValues {
         FileCheck checker = new FileCheck(dump_path, TestWrapper.class.getMethod("test_invoke", TestWrapper.class), false);
         // find compiled method
         checker.check(
-            "define hotspotcc i32 @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_test_invoke_(L"+TestWrapper.class.getName().replaceAll("\\.", "_")+";)I");
+            "define hotspotcc i32 @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_test_invoke\"(ptr addrspace(1) %0)");
         // check IR
         checker.check("entry:");
         checker.check("br label %bci_0");
         checker.check("bci_0:");
-        checker.check("invoke hotspotcc void @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_empty_()V\"() #6 [ \"deopt\"(i64 12, ptr addrspace(1) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 12884901987, i32 0, i64 17179869190, float 1.300000e+01) ]");
+        checker.check("invoke hotspotcc void @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_empty\"() #6 [ \"deopt\"(i64 12, ptr addrspace(1) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 12884901987, i32 0, i64 17179869190, float 1.300000e+01) ]");
 
         // check DebugInfo in nmethods output
         /* example output of PcDesc
@@ -71,9 +71,10 @@ PcDesc(pc=0x00007fcad48b2758 offset=18 bits=0):
    Locals
     - l0: stack[0],oop
     - l1: 10
-    - l2: 12
-    - l3: empty
-    - l4: 1095761920
+    - l2: 0
+    - l3: 12
+    - l4: empty
+    - l5: 1095761920
         */
         output.shouldMatch(
             "pc-bytecode offsets:\n" +
@@ -83,7 +84,10 @@ PcDesc(pc=0x00007fcad48b2758 offset=18 bits=0):
             ".*Locals\n" +
             ".*l0: stack\\[0\\],oop\n" +
             ".*l1: 10\n" +
-            ".*l2: 12\n"
+            ".*l2: 0\n" +
+            ".*l3: 12\n" +
+            ".*l4: empty\n" +
+            ".*l5: 1095761920\n"
         );
         /* example output of ScopeDesc
 scopes:
@@ -92,9 +96,9 @@ ScopeDesc(pc=0x00007fccfc8b2758 offset=18):
    Locals
     - l0: stack[0],oop
     - l1: 10
-    - l2: 12
-    - l3: empty
-    - l4: 1095761920
+    - l3: 12
+    - l4: empty
+    - l5: 10957619200
          */
         output.shouldMatch(
             "scopes:\n" +
@@ -103,7 +107,10 @@ ScopeDesc(pc=0x00007fccfc8b2758 offset=18):
             ".*Locals\n" +
             ".*l0: stack\\[0\\],oop\n" +
             ".*l1: 10\n" +
-            ".*l2: 12\n"
+            ".*l2: 0\n" +
+            ".*l3: 12\n" +
+            ".*l4: empty\n" +
+            ".*l5: 1095761920\n"
         );
     }
 

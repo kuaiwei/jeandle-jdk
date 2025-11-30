@@ -196,32 +196,36 @@ void JeandleVMState::store(BasicType type, int index, llvm::Value* value) {
 }
 
 
-llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<> &builder) {
+llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<>& builder) {
   llvm::SmallVector<llvm::Value*> args;
   // |--- loc ---|--- stk ---|--- arg ---|--- mon ---|--- scl ---|
   /* TODO: monitor and scalar */
   for (size_t i=0; i < _locals.size(); i++) {
     if (!_locals[i].is_null()) {
-      uint64_t encode = DeoptValueEncode(i, LocalType, _locals[i].computational_type()).encode();
+      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::LocalType, _locals[i].computational_type()).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(_locals[i].value());
     } else {
       // replace with {T_ILLEGAL, 0}
-      uint64_t encode = DeoptValueEncode(i, LocalType, T_ILLEGAL).encode();
+      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::LocalType, T_ILLEGAL).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(builder.getInt32(0));
     }
   }
   for (size_t i=0; i < _stack.size(); i++) {
     if (!_stack[i].is_null()) {
-      uint64_t encode = DeoptValueEncode(i, StackType, stack_type_at(i)).encode();
+      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::StackType, stack_computational_type_at(i)).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(_stack[i].value());
     } else {
       // replace with {T_ILLEGAL, 0}
-      uint64_t encode = DeoptValueEncode(i, StackType, T_ILLEGAL).encode();
+      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::StackType, T_ILLEGAL).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(builder.getInt32(0));
+    }
+    // JeandleVMState use 2 slots for double word type, we will handle it in StackMapParser, skip the next slot
+    if (is_double_word_type(stack_computational_type_at(i))) {
+      i++;
     }
   }
   return args;
@@ -1237,12 +1241,8 @@ void JeandleAbstractInterpreter::invoke() {
   DispatchedDest dispatched = dispatch_exception_for_invoke();
 
   // Create the invoke instruction with deopt operands.
-  llvm::InvokeInst* call = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args);
-  llvm::OperandBundleDef deoptBundle("deopt", _jvm->deopt_args(_ir_builder));
-  llvm::InvokeInst* invoke = static_cast<llvm::InvokeInst *>(llvm::CallBase::addOperandBundle(call, id, deoptBundle, _ir_builder.GetInsertPoint()));
-  invoke->copyMetadata(*call);
-  call->replaceAllUsesWith(invoke);
-  call->eraseFromParent();
+  llvm::OperandBundleDef deopt_bundle("deopt", _jvm->deopt_args(_ir_builder));
+  llvm::InvokeInst* invoke = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args, deopt_bundle);
 
   // Continue to interpret the remaining bytecodes in the current JeandleBasicBlock at dispatched._normal_dest.
   _ir_builder.SetInsertPoint(dispatched._normal_dest);
