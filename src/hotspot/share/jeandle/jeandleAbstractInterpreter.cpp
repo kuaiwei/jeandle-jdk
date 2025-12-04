@@ -1242,7 +1242,7 @@ void JeandleAbstractInterpreter::invoke() {
 
   // Create the invoke instruction with deopt operands.
   llvm::OperandBundleDef deopt_bundle("deopt", _jvm->deopt_args(_ir_builder));
-  llvm::InvokeInst* invoke = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args, deopt_bundle);
+  llvm::InvokeInst* invoke = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args, {deopt_bundle});
 
   // Continue to interpret the remaining bytecodes in the current JeandleBasicBlock at dispatched._normal_dest.
   _ir_builder.SetInsertPoint(dispatched._normal_dest);

@@ -57,10 +57,10 @@ public class TestScopeValues {
         checker.check(
             "define hotspotcc i32 @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_test_invoke\"(ptr addrspace(1) %0)");
         // check IR
-        checker.check("entry:");
-        checker.check("br label %bci_0");
-        checker.check("bci_0:");
-        checker.check("invoke hotspotcc void @\"compiler_jeandle_deoptimize_TestScopeValues$TestWrapper_empty\"() #6 [ \"deopt\"(i64 12, ptr addrspace(1) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 12884901987, i32 0, i64 17179869190, float 1.300000e+01) ]");
+        checker.checkNext("entry:");
+        checker.checkNext("br label %bci_0");
+        checker.checkNext("bci_0:");
+        checker.checkNextPattern("invoke hotspotcc .*compiler_jeandle_deoptimize_TestScopeValues\\$TestWrapper_empty.* \"deopt\"\\(i64 12, ptr addrspace\\(1\\) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 12884901987, i32 0, i64 17179869190, float 1.300000e\\+01\\)");
 
         // check DebugInfo in nmethods output
         /* example output of PcDesc
