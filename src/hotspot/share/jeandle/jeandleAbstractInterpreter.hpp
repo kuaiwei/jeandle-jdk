@@ -150,6 +150,7 @@ class JeandleBasicBlock : public JeandleCompilationResourceObj {
     is_compiled                   = 1 << 0,
     is_on_work_list               = 1 << 1,
     is_loop_header                = 1 << 2,
+    has_trap                      = 1 << 4,
   };
 
   void set(Flag f)                               { _flags |= f; }
@@ -186,6 +187,9 @@ class JeandleBasicBlock : public JeandleCompilationResourceObj {
   bool is_exception_handler() { return _ci_block->is_handler(); }
   int exeption_range_start_bci() { return _ci_block->ex_start_bci(); }
   int exeption_range_limit_bci() { return _ci_block->ex_limit_bci(); }
+
+  bool has_uncommon_trap() const { return (_flags & has_trap) != 0;}
+  void set_has_uncommon_trap() { _flags |= has_trap; }
 
  private:
   int _block_id;
@@ -305,7 +309,7 @@ class JeandleAbstractInterpreter : public StackObj {
   void arith_op(BasicType type, Bytecodes::Code code);
 
   llvm::CallInst* call_java_op(llvm::StringRef java_op, llvm::ArrayRef<llvm::Value*> args);
-  llvm::CallInst* call_jeandle_routine(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value*> arg, llvm::CallingConv::ID calling_conv);
+  llvm::CallInst* call_jeandle_routine(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value*> arg, llvm::CallingConv::ID calling_conv, llvm::ArrayRef<llvm::OperandBundleDef> deopt_bundle={});
 
   void add_safepoint_poll();
 
@@ -369,6 +373,8 @@ class JeandleAbstractInterpreter : public StackObj {
   void null_check(llvm::Value* obj);
 
   void boundary_check(llvm::Value* array_oop, llvm::Value* index);
+
+  void uncommon_trap(Deoptimization::DeoptReason, Deoptimization::DeoptAction, llvm::BasicBlock* insert_point = nullptr);
 };
 
 #endif // SHARE_JEANDLE_ABSTRACT_INTERPRETER_HPP

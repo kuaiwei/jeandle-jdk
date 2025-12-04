@@ -40,6 +40,7 @@
 #include "ci/ciEnv.hpp"
 #include "ci/ciMethod.hpp"
 #include "code/exceptionHandlerTable.hpp"
+#include "runtime/sharedRuntime.hpp"
 
 
 class DeoptValueEncoding {
@@ -114,7 +115,8 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
     // We don't need to assign a unique statepoint id for each routine call site, only call type and target is used.
     bool use_default_statepoint_id = (statepoint_id == llvm::StatepointDirectives::DefaultStatepointID);
     bool is_routine_call = (type == JeandleCompiledCall::ROUTINE_CALL);
-    assert(use_default_statepoint_id == is_routine_call, "routine calls should use the default statepoint id");
+    bool is_uncommon_trap = target == SharedRuntime::uncommon_trap_blob()->entry_point();
+    assert(is_uncommon_trap || use_default_statepoint_id == is_routine_call, "routine calls should use the default statepoint id");
 #endif // ASSERT
   }
 
