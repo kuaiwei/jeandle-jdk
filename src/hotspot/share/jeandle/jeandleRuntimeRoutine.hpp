@@ -110,6 +110,8 @@
   def(SharedRuntime_frem,                         SharedRuntime::frem,     llvm::Type::getFloatTy(context),     llvm::Type::getFloatTy(context),          \
                                                                                                                 llvm::Type::getFloatTy(context))          \
                                                                                                                                                           \
+  def(uncommon_trap, SharedRuntime::uncommon_trap_blob()->entry_point(),   llvm::Type::getVoidTy(context),      llvm::Type::getInt32Ty(context))          \
+                                                                                                                                                          \
   def(SharedRuntime_complete_monitor_locking_C,   SharedRuntime::complete_monitor_locking_C, llvm::Type::getVoidTy(context),                                             \
                                                                                            llvm::PointerType::get(context, llvm::jeandle::AddrSpace::JavaHeapAddrSpace), \
                                                                                            llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace),    \
