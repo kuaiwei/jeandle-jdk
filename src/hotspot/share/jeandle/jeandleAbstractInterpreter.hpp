@@ -300,6 +300,7 @@ class JeandleAbstractInterpreter : public StackObj {
   bool inline_intrinsic(const ciMethod* target);
   void stack_op(Bytecodes::Code code);
   void shift_op(BasicType type, Bytecodes::Code code);
+  void checkcast();
   void instanceof(int klass_index);
   void arith_op(BasicType type, Bytecodes::Code code);
 

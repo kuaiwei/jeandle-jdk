@@ -70,6 +70,9 @@ public class TestInstanceof {
         Asserts.assertFalse(testNotSubClass(myDog));
         Asserts.assertFalse(testNotSubInterface(myDog));
 
+        Asserts.assertFalse(testSubClass(null));
+        Asserts.assertFalse(testSubInterface(null));
+
         // check dead global variable elimination
         String currentDir = System.getProperty("user.dir");
         {

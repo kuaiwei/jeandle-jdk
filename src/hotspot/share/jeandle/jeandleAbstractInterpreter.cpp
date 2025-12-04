@@ -906,7 +906,7 @@ void JeandleAbstractInterpreter::interpret_block(JeandleBasicBlock* block) {
         dispatch_exception_to_handler(_jvm->apop());
         break;
 
-      case Bytecodes::_checkcast: Unimplemented(); break;
+      case Bytecodes::_checkcast: checkcast(); break;
       case Bytecodes::_instanceof: instanceof(_bytecodes.get_index_u2()); break;
 
       case Bytecodes::_monitorenter: monitorenter(); break;
@@ -1422,6 +1422,51 @@ void JeandleAbstractInterpreter::shift_op(BasicType type, Bytecodes::Code code) 
     }
     default: ShouldNotReachHere();
   }
+}
+
+void JeandleAbstractInterpreter::checkcast() {
+  llvm::Value* obj = _jvm->apop();
+
+  // TODO：check klass's loading state.
+  ciKlass* ci_super_klass = _bytecodes.get_klass();
+  assert(ci_super_klass->is_loaded(), "klass must be loaded");
+
+  Klass* super_klass = (Klass*)(ci_super_klass->constant_encoding());
+  llvm::PointerType* klass_type = llvm::PointerType::get(*_context,llvm::jeandle::AddrSpace::CHeapAddrSpace);
+
+  llvm::Value* super_klass_addr = _ir_builder.getInt64((intptr_t)super_klass);
+  llvm::Value* super_klass_ptr = _ir_builder.CreateIntToPtr(super_klass_addr,klass_type);
+
+  llvm::CallInst* call = call_java_op("jeandle.checkcast", {super_klass_ptr, obj});
+
+  int cur_bci = _bytecodes.cur_bci();
+  llvm::BasicBlock* checkcast_pass = llvm::BasicBlock::Create(*_context,
+                                                               "bci_" + std::to_string(cur_bci) + "_checkcast_pass",
+                                                               _llvm_func);
+  llvm::BasicBlock* checkcast_fail = llvm::BasicBlock::Create(*_context,
+                                                               "bci_" + std::to_string(cur_bci) + "_checkcast_fail",
+                                                               _llvm_func);
+
+  _ir_builder.CreateCondBr(call, checkcast_pass, checkcast_fail);
+
+  _ir_builder.SetInsertPoint(checkcast_fail);
+  llvm::Value* exception_oop_handle = find_or_insert_oop(CURRENT_ENV->ClassCastException_instance());
+  llvm::Value* exception_oop = _ir_builder.CreateLoad(JeandleType::java2llvm(BasicType::T_OBJECT, *_context), exception_oop_handle);
+
+  // Clear the detail message of the preallocated exception object.
+  // Weblogic sometimes mutates the detail message of exceptions using reflection.
+  int detailMessage_offset = java_lang_Throwable::get_detailMessage_offset();
+  llvm::Value* detailMessage_addr = compute_instance_field_address(exception_oop, detailMessage_offset);
+  llvm::StoreInst* store_inst = _ir_builder.CreateStore(llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(JeandleType::java2llvm(BasicType::T_OBJECT, *_context))),
+                                                        detailMessage_addr);
+  store_inst->setAtomic(llvm::AtomicOrdering::Unordered);
+
+  dispatch_exception_to_handler(exception_oop);
+
+  _ir_builder.SetInsertPoint(checkcast_pass);
+  _block->set_tail_llvm_block(checkcast_pass);
+
+  _jvm->apush(obj);
 }
 
 void JeandleAbstractInterpreter::instanceof(int klass_index) {
