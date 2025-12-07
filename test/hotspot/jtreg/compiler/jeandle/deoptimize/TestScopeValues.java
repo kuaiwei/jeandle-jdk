@@ -60,7 +60,7 @@ public class TestScopeValues {
         checker.checkNext("entry:");
         checker.checkNext("br label %bci_0");
         checker.checkNext("bci_0:");
-        checker.checkNextPattern("invoke hotspotcc .*compiler_jeandle_deoptimize_TestScopeValues\\$TestWrapper_empty.* \"deopt\"\\(i64 12, ptr addrspace\\(1\\) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 12884901987, i32 0, i64 17179869190, float 1.300000e\\+01\\)");
+        checker.checkNextPattern("invoke hotspotcc .*compiler_jeandle_deoptimize_TestScopeValues\\$TestWrapper_empty.* \"deopt\"\\(i64 12, ptr addrspace\\(1\\) %0, i64 4294967306, i32 10, i64 8589934603, i64 12, i64 17179869190, float 1.300000e\\+01\\)");
 
         // check DebugInfo in nmethods output
         /* example output of PcDesc
@@ -69,12 +69,11 @@ PcDesc(pc=0x00007fcad48b273f offset=ffffffff bits=0):
 PcDesc(pc=0x00007fcad48b2758 offset=18 bits=0):
    compiler.jeandle.deoptimize.TestScopeValues$TestWrapper::test_invoke@11 (line 84)
    Locals
-    - l0: stack[0],oop
+    - l0: stack[12],oop
     - l1: 10
     - l2: 0
     - l3: 12
-    - l4: empty
-    - l5: 1095761920
+    - l4: 1095761920
         */
         output.shouldMatch(
             "pc-bytecode offsets:\n" +
@@ -82,12 +81,11 @@ PcDesc(pc=0x00007fcad48b2758 offset=18 bits=0):
             "PcDesc.*\n" +
             ".*TestWrapper::test_invoke.*\n" +
             ".*Locals\n" +
-            ".*l0: stack\\[0\\],oop\n" +
+            ".*l0: stack\\[\\d+\\],oop\n" +
             ".*l1: 10\n" +
             ".*l2: 0\n" +
             ".*l3: 12\n" +
-            ".*l4: empty\n" +
-            ".*l5: 1095761920\n"
+            ".*l4: 1095761920\n"
         );
         /* example output of ScopeDesc
 scopes:
@@ -97,20 +95,18 @@ ScopeDesc(pc=0x00007fccfc8b2758 offset=18):
     - l0: stack[0],oop
     - l1: 10
     - l3: 12
-    - l4: empty
-    - l5: 10957619200
+    - l4: 10957619200
          */
         output.shouldMatch(
             "scopes:\n" +
             "ScopeDesc.*\n" +
             ".*TestWrapper::test_invoke.*\n" +
             ".*Locals\n" +
-            ".*l0: stack\\[0\\],oop\n" +
+            ".*l0: stack\\[\\d+\\],oop\n" +
             ".*l1: 10\n" +
             ".*l2: 0\n" +
             ".*l3: 12\n" +
-            ".*l4: empty\n" +
-            ".*l5: 1095761920\n"
+            ".*l4: 1095761920\n"
         );
     }
 

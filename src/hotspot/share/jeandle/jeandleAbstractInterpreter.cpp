@@ -202,30 +202,42 @@ llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<>& bu
   /* TODO: monitor and scalar */
   for (size_t i=0; i < _locals.size(); i++) {
     if (!_locals[i].is_null()) {
-      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::LocalType, _locals[i].computational_type()).encode();
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::LocalType, _locals[i].computational_type()).encode();
+#ifdef ASSERT
+      if (log_is_enabled(Trace, jeandle)) {
+        DeoptValueEncoding::decode(encode).print();
+      }
+#endif
       args.push_back(builder.getInt64(encode));
       args.push_back(_locals[i].value());
+      if (is_double_word_type(_locals[i].computational_type())) {
+        i++;
+      }
     } else {
       // replace with {T_ILLEGAL, 0}
-      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::LocalType, T_ILLEGAL).encode();
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::LocalType, T_ILLEGAL).encode();
+#ifdef ASSERT
+      if (log_is_enabled(Trace, jeandle)) {
+        DeoptValueEncoding::decode(encode).print();
+      }
+#endif
       args.push_back(builder.getInt64(encode));
       args.push_back(builder.getInt32(0));
     }
   }
   for (size_t i=0; i < _stack.size(); i++) {
     if (!_stack[i].is_null()) {
-      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::StackType, stack_computational_type_at(i)).encode();
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::StackType, stack_computational_type_at(i)).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(_stack[i].value());
+      if (is_double_word_type(stack_computational_type_at(i))) {
+        i++;
+      }
     } else {
       // replace with {T_ILLEGAL, 0}
-      uint64_t encode = DeoptValueEncode(i, DeoptValueEncode::StackType, T_ILLEGAL).encode();
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::StackType, T_ILLEGAL).encode();
       args.push_back(builder.getInt64(encode));
       args.push_back(builder.getInt32(0));
-    }
-    // JeandleVMState use 2 slots for double word type, we will handle it in StackMapParser, skip the next slot
-    if (is_double_word_type(stack_computational_type_at(i))) {
-      i++;
     }
   }
   return args;

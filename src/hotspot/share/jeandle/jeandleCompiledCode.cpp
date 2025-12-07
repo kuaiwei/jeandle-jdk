@@ -33,6 +33,7 @@
 #include "asm/macroAssembler.hpp"
 #include "ci/ciEnv.hpp"
 #include "code/vmreg.inline.hpp"
+#include "logging/log.hpp"
 #include "runtime/os.hpp"
 
 namespace {
@@ -433,7 +434,7 @@ static VMReg resolve_vmreg(const StackMapParser::LocationAccessor& location, Sta
   return nullptr;
 }
 
-void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, const DeoptValueEncode& encode, const StackMapParser::LocationAccessor& location,
+void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, const DeoptValueEncoding& encode, const StackMapParser::LocationAccessor& location,
   GrowableArray<ScopeValue*>* array, int& index) {
   assert(array != nullptr, "sanity");
   bool is_constant = StackMapUtil::is_constant(location);
@@ -451,7 +452,7 @@ void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, 
     break;
   }
   case T_LONG: {
-    // 2 stack slots for long type in LP64
+    // 2 stack slots for long type
     array->at_put_grow(index++, new ConstantIntValue((jint)0));
     if (is_constant) {
       array->at_put_grow(index++, new ConstantLongValue(StackMapUtil::getConstantUlong(stackmaps, location)));
@@ -477,7 +478,7 @@ void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, 
     break;
   }
   case T_DOUBLE: {
-    // 2 stack slots for double type in LP64
+    // 2 stack slots for double type
     array->at_put_grow(index++, new ConstantIntValue((jint)0));
     if (is_constant) {
       array->at_put_grow(index++, new ConstantDoubleValue(StackMapUtil::getConstantDouble(stackmaps, location)));
@@ -554,9 +555,14 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
     assert(location != record->location_end(), "must be in range");
     auto value_location = *(location++);
     uint64_t encode = StackMapUtil::getConstantUlong(stackmaps, encode_location);
-    DeoptValueEncode enc = DeoptValueEncode::decode(encode);
-    assert(enc._stack_type == DeoptValueEncode::LocalType || enc._stack_type == DeoptValueEncode::StackType, "Unsupported type");
-    bool is_local = enc._stack_type == DeoptValueEncode::LocalType;
+    DeoptValueEncoding enc = DeoptValueEncoding::decode(encode);
+#ifdef ASSERT
+    if (log_is_enabled(Trace, jeandle)) {
+      enc.print();
+    }
+#endif
+    assert(enc._stack_type == DeoptValueEncoding::LocalType || enc._stack_type == DeoptValueEncoding::StackType, "Unsupported type");
+    bool is_local = enc._stack_type == DeoptValueEncoding::LocalType;
     fill_one_scope_value(stackmaps, enc, value_location,
       is_local ? locals : stack,
       is_local ? local_index : stack_index);
