@@ -33,6 +33,7 @@
 #include "asm/macroAssembler.hpp"
 #include "ci/ciEnv.hpp"
 #include "code/vmreg.inline.hpp"
+#include "logging/log.hpp"
 #include "runtime/os.hpp"
 
 namespace {
@@ -96,7 +97,7 @@ class JeandleConstReloc : public JeandleReloc {
 
 class JeandleCallReloc : public JeandleReloc {
  public:
-  JeandleCallReloc(int inst_end_offset, ciEnv* env, ciMethod* method, OopMap* oop_map, CallSiteInfo* call) :
+  JeandleCallReloc(int inst_end_offset, ciEnv* env, ciMethod* method, JeandleOopMap* oop_map, CallSiteInfo* call) :
     JeandleReloc(inst_end_offset - JeandleCompiledCall::call_site_size(call->type()) /* beginning of a call instruction */),
     _env(env), _method(method), _oop_map(oop_map), _call(call) {}
 
@@ -130,7 +131,7 @@ class JeandleCallReloc : public JeandleReloc {
  private:
   ciEnv* _env;
   ciMethod* _method;
-  OopMap* _oop_map;
+  JeandleOopMap* _oop_map;
   CallSiteInfo* _call;
   int inst_end_offset() { return offset() + JeandleCompiledCall::call_site_size(_call->type()); }
 
@@ -140,17 +141,13 @@ class JeandleCallReloc : public JeandleReloc {
     assert(_fixed_up, "offset must be fixed up");
 
     DebugInformationRecorder* recorder = _env->debug_info();
-    recorder->add_safepoint(inst_end_offset(), _oop_map);
-
-    // No deopt support now.
-    GrowableArray<ScopeValue*> *locarray = new GrowableArray<ScopeValue*>(0);
-    GrowableArray<ScopeValue*> *exparray = new GrowableArray<ScopeValue*>(0);
+    recorder->add_safepoint(inst_end_offset(), _oop_map->oop_map());
 
     // No monitor support now.
     GrowableArray<MonitorValue*> *monarray = new GrowableArray<MonitorValue*>(0);
 
-    DebugToken *locvals = recorder->create_scope_values(locarray);
-    DebugToken *expvals = recorder->create_scope_values(exparray);
+    DebugToken *locvals = recorder->create_scope_values(_oop_map->locals());
+    DebugToken *expvals = recorder->create_scope_values(_oop_map->stack());
     DebugToken *monvals = recorder->create_monitor_values(monarray);
 
 #ifdef ASSERT
@@ -364,7 +361,7 @@ void JeandleCompiledCode::resolve_reloc_info(JeandleAssembler& assembler) {
         call_info = _routine_call_sites[inst_end_offset];
       }
       if (call_info) {
-        relocs.push_back(new JeandleCallReloc(inst_end_offset, _env, _method, build_oop_map(record), call_info));
+        relocs.push_back(new JeandleCallReloc(inst_end_offset, _env, _method, build_oop_map(stackmaps, record, call_info), call_info));
       }
     }
   }
@@ -437,11 +434,146 @@ static VMReg resolve_vmreg(const StackMapParser::LocationAccessor& location, Sta
   return nullptr;
 }
 
-OopMap* JeandleCompiledCode::build_oop_map(StackMapParser::record_iterator& record) {
+void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps,
+                                               const DeoptValueEncoding& encode,
+                                               const StackMapParser::LocationAccessor& location,
+                                               GrowableArray<ScopeValue*>* array,
+                                               int& index) {
+  assert(array != nullptr, "sanity");
+  bool is_constant = StackMapUtil::is_constant(location);
+  switch (encode._basic_type) {
+  case T_INT: {
+    if (is_constant) {
+      array->at_put_grow(index++, new ConstantIntValue(StackMapUtil::getConstantUint(stackmaps, location)));
+    } else {
+      array->at_put_grow(index++,
+        StackMapUtil::is_stack(location)
+        ? new LocationValue(Location::new_stk_loc(Location::Type::normal, StackMapUtil::stack_offset(location)))
+        : new LocationValue(Location::new_reg_loc(Location::Type::normal, resolve_vmreg(location, location.getKind())))
+      );
+    }
+    break;
+  }
+  case T_LONG: {
+    // 2 stack slots for long type
+    array->at_put_grow(index++, new ConstantIntValue((jint)0));
+    if (is_constant) {
+      array->at_put_grow(index++, new ConstantLongValue(StackMapUtil::getConstantUlong(stackmaps, location)));
+    } else {
+      array->at_put_grow(index++,
+        StackMapUtil::is_stack(location)
+        ? new LocationValue(Location::new_stk_loc(Location::Type::lng, StackMapUtil::stack_offset(location)))
+        : new LocationValue(Location::new_reg_loc(Location::Type::lng, resolve_vmreg(location, location.getKind())))
+      );
+    }
+    break;
+  }
+  case T_FLOAT: {
+    if (is_constant) {
+      array->at_put_grow(index++, new ConstantIntValue(jint_cast(StackMapUtil::getConstantFloat(stackmaps, location))));
+    } else {
+      array->at_put_grow(index++,
+        StackMapUtil::is_stack(location)
+        ? new LocationValue(Location::new_stk_loc(Location::Type::normal, StackMapUtil::stack_offset(location)))
+        : new LocationValue(Location::new_reg_loc(Location::Type::normal, resolve_vmreg(location, location.getKind())))
+      );
+    }
+    break;
+  }
+  case T_DOUBLE: {
+    // 2 stack slots for double type
+    array->at_put_grow(index++, new ConstantIntValue((jint)0));
+    if (is_constant) {
+      array->at_put_grow(index++, new ConstantDoubleValue(StackMapUtil::getConstantDouble(stackmaps, location)));
+    } else {
+      array->at_put_grow(index++,
+        StackMapUtil::is_stack(location)
+        ? new LocationValue(Location::new_stk_loc(Location::Type::dbl, StackMapUtil::stack_offset(location)))
+        : new LocationValue(Location::new_reg_loc(Location::Type::dbl, resolve_vmreg(location, location.getKind())))
+      );
+    }
+    break;
+  }
+  case T_OBJECT: {
+    if (is_constant) {
+      uint64_t v = StackMapUtil::getConstantUlong(stackmaps, location);
+      if (v == 0L) {
+        array->at_put_grow(index++, new ConstantOopWriteValue(nullptr));
+      } else {
+        /* No constant oop is embedding into code */
+        ShouldNotReachHere();
+      }
+    } else {
+      array->at_put_grow(index++,
+        StackMapUtil::is_stack(location)
+        ? new LocationValue(Location::new_stk_loc(Location::Type::oop, StackMapUtil::stack_offset(location)))
+        : new LocationValue(Location::new_reg_loc(Location::Type::oop, resolve_vmreg(location, location.getKind())))
+      );
+    }
+    break;
+  }
+  case T_ILLEGAL: {
+    uint32_t val = StackMapUtil::getConstantUint(stackmaps, location);
+    assert(val == 0, "must be zero for T_ILLEGAL");
+    // put an illegal value
+    array->at_put_grow(index++, new LocationValue(Location()));
+    break;
+  }
+  default:
+    Unimplemented();
+  }
+}
+
+JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, StackMapParser::record_iterator& record, CallSiteInfo* call_info) {
   assert(_frame_size > 0, "frame size must be greater than zero");
   OopMap* oop_map = new OopMap(frame_size_in_slots(), 0);
 
-  for (auto location = record->location_begin(); location != record->location_end(); location++) {
+  // It comes from observation of llvm stackmap, it may be changed in future.
+  // The first 2 constants are ignored, the third constant is the number of deopt operands
+  auto location = record->location_begin();
+  auto first = *(location++);
+  assert(location != record->location_end(), "must be in range");
+  auto second = *(location++);
+  assert(location != record->location_end(), "must be in range");
+  assert(first.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
+  assert(second.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
+  int num_deopts = 0;
+  if (call_info->has_deopt_operands()) {
+    assert(this->_method != nullptr, "must be method compilation");
+    auto third = *(location++);
+    assert(third.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
+    num_deopts = third.getSmallConstant();
+    assert(num_deopts >= 0, "negative number");
+  }
+
+  // build scope values
+  GrowableArray<ScopeValue*>* locals = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_locals()) : nullptr;
+  GrowableArray<ScopeValue*>* stack  = num_deopts > 0 ? new GrowableArray<ScopeValue*>(_method->max_stack()) : nullptr;
+  int local_index = 0;
+  int stack_index = 0;
+  while (num_deopts > 0) {
+    // deopt arguments are passed as a pair, 1st is encode, 2nd is real value
+    assert(location != record->location_end(), "must be in range");
+    auto encode_location = *(location++);
+    assert(location != record->location_end(), "must be in range");
+    auto value_location = *(location++);
+    uint64_t encode = StackMapUtil::getConstantUlong(stackmaps, encode_location);
+    DeoptValueEncoding enc = DeoptValueEncoding::decode(encode);
+#ifdef ASSERT
+    if (log_is_enabled(Trace, jeandle)) {
+      enc.print();
+    }
+#endif
+    assert(enc._value_type == DeoptValueEncoding::LocalType || enc._value_type == DeoptValueEncoding::StackType, "Unsupported type");
+    bool is_local = enc._value_type == DeoptValueEncoding::LocalType;
+    fill_one_scope_value(stackmaps, enc, value_location,
+                         is_local ? locals : stack,
+                         is_local ? local_index : stack_index);
+    num_deopts -= 2;
+  }
+
+  // build oop map
+  for (; location != record->location_end(); location++) {
     // Extract location of base pointer.
     auto base_location = *location;
     StackMapParser::LocationKind base_kind = base_location.getKind();
@@ -470,7 +602,7 @@ OopMap* JeandleCompiledCode::build_oop_map(StackMapParser::record_iterator& reco
       Unimplemented();
     }
   }
-  return oop_map;
+  return new JeandleOopMap(oop_map, locals, stack);
 }
 
 void JeandleCompiledCode::build_exception_handler_table() {
@@ -557,4 +689,51 @@ void JeandleCompiledCode::build_implicit_exception_table() {
 
 int JeandleCompiledCode::frame_size_in_slots() {
   return _frame_size * sizeof(intptr_t) / VMRegImpl::stack_slot_size;
+}
+
+uint32_t StackMapUtil::getConstantUint(const StackMapParser& parser, const StackMapParser::LocationAccessor& location) {
+  switch (location.getKind()) {
+    case StackMapParser::LocationKind::Constant:
+      return location.getSmallConstant();
+    case StackMapParser::LocationKind::ConstantIndex: {
+      // is it possible llvm embed a int value as a long?
+      uint32_t index = location.getConstantIndex();
+      uint64_t val = parser.getConstant(index).getValue();
+      assert(val <= UINT32_MAX, "must be in range");
+      return (uint32_t)val;
+    }
+    default:
+      ShouldNotReachHere();
+  }
+}
+
+uint64_t StackMapUtil::getConstantUlong(const StackMapParser& parser, const StackMapParser::LocationAccessor& location) {
+  switch (location.getKind()) {
+  case StackMapParser::LocationKind::Constant:
+    return (uint64_t)location.getSmallConstant();
+  case StackMapParser::LocationKind::ConstantIndex: {
+    uint32_t index = location.getConstantIndex();
+    return parser.getConstant(index).getValue();
+  }
+  default:
+    ShouldNotReachHere();
+  }
+}
+
+float StackMapUtil::getConstantFloat(const StackMapParser& parser, const StackMapParser::LocationAccessor& location) {
+  union {
+    uint32_t u;
+    float f;
+  } uf;
+  uf.u = getConstantUint(parser, location);
+  return uf.f;
+}
+
+double StackMapUtil::getConstantDouble(const StackMapParser& parser, const StackMapParser::LocationAccessor& location) {
+  union {
+    uint64_t u;
+    double d;
+  } ud;
+  ud.u = getConstantUlong(parser, location);
+  return ud.d;
 }

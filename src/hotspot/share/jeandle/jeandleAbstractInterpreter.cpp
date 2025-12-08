@@ -195,6 +195,54 @@ void JeandleVMState::store(BasicType type, int index, llvm::Value* value) {
   }
 }
 
+
+llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<>& builder) {
+  llvm::SmallVector<llvm::Value*> args;
+  // |--- loc ---|--- stk ---|--- arg ---|--- mon ---|--- scl ---|
+  /* TODO: monitor and scalar */
+  for (size_t i = 0; i < _locals.size(); i++) {
+    if (!_locals[i].is_null()) {
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::LocalType, _locals[i].computational_type()).encode();
+#ifdef ASSERT
+      if (log_is_enabled(Trace, jeandle)) {
+        DeoptValueEncoding::decode(encode).print();
+      }
+#endif
+      args.push_back(builder.getInt64(encode));
+      args.push_back(_locals[i].value());
+      if (is_double_word_type(_locals[i].computational_type())) {
+        i++;
+      }
+    } else {
+      // replace with {T_ILLEGAL, 0}
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::LocalType, T_ILLEGAL).encode();
+#ifdef ASSERT
+      if (log_is_enabled(Trace, jeandle)) {
+        DeoptValueEncoding::decode(encode).print();
+      }
+#endif
+      args.push_back(builder.getInt64(encode));
+      args.push_back(builder.getInt32(0));
+    }
+  }
+  for (size_t i = 0; i < _stack.size(); i++) {
+    if (!_stack[i].is_null()) {
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::StackType, stack_computational_type_at(i)).encode();
+      args.push_back(builder.getInt64(encode));
+      args.push_back(_stack[i].value());
+      if (is_double_word_type(stack_computational_type_at(i))) {
+        i++;
+      }
+    } else {
+      // replace with {T_ILLEGAL, 0}
+      uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::StackType, T_ILLEGAL).encode();
+      args.push_back(builder.getInt64(encode));
+      args.push_back(builder.getInt32(0));
+    }
+  }
+  return args;
+}
+
 JeandleBasicBlock::JeandleBasicBlock(int block_id,
                                      int start_bci,
                                      int limit_bci,
@@ -1204,13 +1252,14 @@ void JeandleAbstractInterpreter::invoke() {
 
   // Record this call.
   uint32_t id = _compiled_code.next_statepoint_id();
-  _compiled_code.push_non_routine_call_site(new CallSiteInfo(call_type, dest, _bytecodes.cur_bci(), id));
+  _compiled_code.push_non_routine_call_site(new CallSiteInfo(call_type, dest, _bytecodes.cur_bci(), true /* _has_deopt_operands */, id));
 
   // Every invoke instruction may throw exceptions, handle them here.
   DispatchedDest dispatched = dispatch_exception_for_invoke();
 
-  // Create the invoke instruction.
-  llvm::InvokeInst* invoke = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args);
+  // Create the invoke instruction with deopt operands.
+  llvm::OperandBundleDef deopt_bundle("deopt", _jvm->deopt_args(_ir_builder));
+  llvm::InvokeInst* invoke = _ir_builder.CreateInvoke(callee, dispatched._normal_dest, dispatched._unwind_dest, args, {deopt_bundle});
 
   // Continue to interpret the remaining bytecodes in the current JeandleBasicBlock at dispatched._normal_dest.
   _ir_builder.SetInsertPoint(dispatched._normal_dest);
