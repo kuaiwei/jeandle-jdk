@@ -973,7 +973,12 @@ void JeandleAbstractInterpreter::interpret_block(JeandleBasicBlock* block) {
   }
 }
 
-void JeandleAbstractInterpreter::uncommon_trap(Deoptimization::DeoptReason reason, Deoptimization::DeoptAction action, ciKlass* klass) {
+void JeandleAbstractInterpreter::uncommon_trap(Deoptimization::DeoptReason reason, Deoptimization::DeoptAction action, llvm::BasicBlock *insert_point) {
+  llvm::BasicBlock* orig_block = _ir_builder.GetInsertBlock();
+  assert(insert_point == nullptr || orig_block != insert_point, "sanity");
+  if (insert_point != nullptr) {
+    _ir_builder.SetInsertPoint(insert_point);
+  }
   llvm::Value* request = _ir_builder.getInt32(Deoptimization::make_trap_request(reason, action));
   llvm::FunctionCallee callee = JeandleRuntimeRoutine::hotspot_uncommon_trap_callee(_module);
   llvm::OperandBundleDef deopt_bundle("deopt", _jvm->deopt_args(_ir_builder));
@@ -994,9 +999,15 @@ void JeandleAbstractInterpreter::uncommon_trap(Deoptimization::DeoptReason reaso
   call->addFnAttr(id_attr);
   call->addFnAttr(patch_bytes_attr);
 
-  _block->set_has_uncommon_trap();
+  if (insert_point == nullptr) {
+    _block->set_has_uncommon_trap();
+  }
   // mark unreachable
   _ir_builder.CreateUnreachable();
+  if (insert_point != nullptr) {
+    // restore insert point
+    _ir_builder.SetInsertPoint(orig_block);
+  }
 }
 
 void JeandleAbstractInterpreter::add_to_work_list(JeandleBasicBlock* block) {
@@ -1359,13 +1370,6 @@ bool JeandleAbstractInterpreter::inline_intrinsic(const ciMethod* target) {
 // Generate IR for calling into JeandleRuntimeRoutine
 llvm::CallInst* JeandleAbstractInterpreter::call_jeandle_routine(llvm::FunctionCallee callee, llvm::ArrayRef<llvm::Value *> args, llvm::CallingConv::ID calling_conv, llvm::ArrayRef<llvm::OperandBundleDef> deopt_bundle) {
   llvm::CallInst *call = _ir_builder.CreateCall(callee, args, deopt_bundle);
-  /*
-  if (deopt_bundle.empty()) {
-    llvm::CallInst *call = _ir_builder.CreateCall(callee, args);
-  } else {
-    llvm::CallInst *call = _ir_builder.CreateCall(callee, args, deopt_bundle);
-  }
-  */
   call->setCallingConv(calling_conv);
   return call;
 }
@@ -1926,8 +1930,7 @@ void JeandleAbstractInterpreter::do_new() {
       klass->name() == ciSymbols::java_lang_Class() ||
       _bytecodes.is_unresolved_klass()) {
     uncommon_trap(Deoptimization::Reason_unhandled,
-                  Deoptimization::Action_none,
-                  klass);
+                  Deoptimization::Action_none);
     return;
   }
   // TODO: cl init barrier
@@ -2217,28 +2220,32 @@ void JeandleAbstractInterpreter::null_check(llvm::Value* obj) {
                                                 llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(obj->getType())));
   llvm::BranchInst* null_check_br = _ir_builder.CreateCondBr(if_null, null_check_fail, null_check_pass);
 
-  // Add make.implicit metadata, and the ImplicitNullChecksPass will transform it into an implicit check.
-  llvm::MDNode* make_implicit = llvm::MDNode::get(*_context, {});
-  null_check_br->setMetadata(llvm::LLVMContext::MD_make_implicit, make_implicit);
-
-  _ir_builder.SetInsertPoint(null_check_fail);
-  llvm::FunctionCallee null_check_fail_callee = JeandleRuntimeRoutine::hotspot_SharedRuntime_throw_NullPointerException_callee(_module);
-  llvm::CallInst* current_thread = call_java_op("jeandle.current_thread", {});
-  llvm::CallInst* call_null_check_fail = _ir_builder.CreateCall(null_check_fail_callee, {current_thread});
-  llvm::Type* ret_type = _llvm_func->getReturnType();
-  if (ret_type->isVoidTy()) {
-    _ir_builder.CreateRetVoid();;
-  } else if (ret_type->isIntegerTy()) {
-    _ir_builder.CreateRet(llvm::ConstantInt::get(ret_type, 0));
-  } else if (ret_type->isFloatTy() || ret_type->isDoubleTy()) {
-    _ir_builder.CreateRet(llvm::ConstantFP::get(ret_type, 0.0));
-  } else if (ret_type->isPointerTy()) {
-    _ir_builder.CreateRet(llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(ret_type)));
+  if (UseNewCode) {
+    uncommon_trap(Deoptimization::Reason_null_check, Deoptimization::Action_make_not_entrant, null_check_fail);
   } else {
-    ShouldNotReachHere();
-  }
+    // Add make.implicit metadata, and the ImplicitNullChecksPass will transform it into an implicit check.
+    llvm::MDNode* make_implicit = llvm::MDNode::get(*_context, {});
+    null_check_br->setMetadata(llvm::LLVMContext::MD_make_implicit, make_implicit);
 
-  _ir_builder.SetInsertPoint(null_check_pass);
+    _ir_builder.SetInsertPoint(null_check_fail);
+    llvm::FunctionCallee null_check_fail_callee = JeandleRuntimeRoutine::hotspot_SharedRuntime_throw_NullPointerException_callee(_module);
+    llvm::CallInst* current_thread = call_java_op("jeandle.current_thread", {});
+    llvm::CallInst* call_null_check_fail = _ir_builder.CreateCall(null_check_fail_callee, {current_thread});
+    llvm::Type* ret_type = _llvm_func->getReturnType();
+    if (ret_type->isVoidTy()) {
+      _ir_builder.CreateRetVoid();;
+    } else if (ret_type->isIntegerTy()) {
+      _ir_builder.CreateRet(llvm::ConstantInt::get(ret_type, 0));
+    } else if (ret_type->isFloatTy() || ret_type->isDoubleTy()) {
+      _ir_builder.CreateRet(llvm::ConstantFP::get(ret_type, 0.0));
+    } else if (ret_type->isPointerTy()) {
+      _ir_builder.CreateRet(llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(ret_type)));
+    } else {
+      ShouldNotReachHere();
+    }
+
+    _ir_builder.SetInsertPoint(null_check_pass);
+  }
   _block->set_tail_llvm_block(null_check_pass);
 }
 
