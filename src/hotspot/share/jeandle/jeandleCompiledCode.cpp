@@ -434,8 +434,11 @@ static VMReg resolve_vmreg(const StackMapParser::LocationAccessor& location, Sta
   return nullptr;
 }
 
-void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps, const DeoptValueEncoding& encode, const StackMapParser::LocationAccessor& location,
-  GrowableArray<ScopeValue*>* array, int& index) {
+void JeandleCompiledCode::fill_one_scope_value(const StackMapParser& stackmaps,
+                                               const DeoptValueEncoding& encode,
+                                               const StackMapParser::LocationAccessor& location,
+                                               GrowableArray<ScopeValue*>* array,
+                                               int& index) {
   assert(array != nullptr, "sanity");
   bool is_constant = StackMapUtil::is_constant(location);
   switch (encode._basic_type) {
@@ -561,11 +564,11 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
       enc.print();
     }
 #endif
-    assert(enc._stack_type == DeoptValueEncoding::LocalType || enc._stack_type == DeoptValueEncoding::StackType, "Unsupported type");
-    bool is_local = enc._stack_type == DeoptValueEncoding::LocalType;
+    assert(enc._value_type == DeoptValueEncoding::LocalType || enc._value_type == DeoptValueEncoding::StackType, "Unsupported type");
+    bool is_local = enc._value_type == DeoptValueEncoding::LocalType;
     fill_one_scope_value(stackmaps, enc, value_location,
-      is_local ? locals : stack,
-      is_local ? local_index : stack_index);
+                         is_local ? locals : stack,
+                         is_local ? local_index : stack_index);
     num_deopts -= 2;
   }
 

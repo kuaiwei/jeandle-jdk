@@ -53,16 +53,16 @@ public:
     ScalarValueType = 4,
     LastType = ScalarValueType + 1
   };
-  DeoptValueEncoding(int index, DeoptValueType stack_type, BasicType basic_type):
-    _index(index), _stack_type(stack_type), _basic_type(basic_type) {
-    assert(_stack_type == LocalType || _stack_type == StackType, "Unsupported stack type");
+  DeoptValueEncoding(int index, DeoptValueType value_type, BasicType basic_type):
+    _index(index), _value_type(value_type), _basic_type(basic_type) {
+    assert(_value_type == LocalType || _value_type == StackType, "Unsupported value type");
   }
 
   uint64_t encode() {
     // encode format
-    // |--- index ---|--- stack_type ---|--- basic_type ---|
+    // |--- index ---|--- value_type ---|--- basic_type ---|
     // |0          31|32              47|48              63|
-    return ((uint64_t)_index << 32) | ((uint64_t)(_stack_type << 16)) | (uint64_t)(_basic_type);
+    return ((uint64_t)_index << 32) | ((uint64_t)(_value_type << 16)) | (uint64_t)(_basic_type);
   }
 
   static DeoptValueEncoding decode(uint64_t encode) {
@@ -76,7 +76,7 @@ public:
   }
 
 #ifdef ASSERT
-  const char* stack_type_name(DeoptValueType t) {
+  const char* value_type_name(DeoptValueType t) {
     switch (t) {
       case LocalType: return "LocalType";
       case StackType: return "StackType";
@@ -88,13 +88,13 @@ public:
   }
   void print() {
     ttyLocker ttyl;
-    tty->print_cr("DeoptValueEncoding: index: %d stack_type: %s, basic_type: %s",
-                  _index, stack_type_name(_stack_type), type2name(_basic_type));
+    tty->print_cr("DeoptValueEncoding: index: %d value_type: %s, basic_type: %s",
+                  _index, value_type_name(_value_type), type2name(_basic_type));
   }
 #endif
 private:
   int _index;
-  DeoptValueType _stack_type;
+  DeoptValueType _value_type;
   BasicType _basic_type;
 };
 

@@ -200,7 +200,7 @@ llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<>& bu
   llvm::SmallVector<llvm::Value*> args;
   // |--- loc ---|--- stk ---|--- arg ---|--- mon ---|--- scl ---|
   /* TODO: monitor and scalar */
-  for (size_t i=0; i < _locals.size(); i++) {
+  for (size_t i = 0; i < _locals.size(); i++) {
     if (!_locals[i].is_null()) {
       uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::LocalType, _locals[i].computational_type()).encode();
 #ifdef ASSERT
@@ -225,7 +225,7 @@ llvm::SmallVector<llvm::Value*> JeandleVMState::deopt_args(llvm::IRBuilder<>& bu
       args.push_back(builder.getInt32(0));
     }
   }
-  for (size_t i=0; i < _stack.size(); i++) {
+  for (size_t i = 0; i < _stack.size(); i++) {
     if (!_stack[i].is_null()) {
       uint64_t encode = DeoptValueEncoding(i, DeoptValueEncoding::StackType, stack_computational_type_at(i)).encode();
       args.push_back(builder.getInt64(encode));
