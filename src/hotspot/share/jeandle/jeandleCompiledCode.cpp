@@ -160,12 +160,6 @@ class JeandleCallReloc : public JeandleReloc {
     DebugToken *expvals = recorder->create_scope_values(_oop_map->stack());
     DebugToken *monvals = recorder->create_monitor_values(monarray);
 
-#ifdef ASSERT
-    if (_call->type() != JeandleCompiledCall::STUB_C_CALL) {
-      // If we are not compiling a call vm stub, there must be a valid Java method.
-      assert(_method, "invalid Java method");
-    }
-#endif
     recorder->describe_scope(inst_end_offset(),
                              methodHandle(),
                              _method,
@@ -324,7 +318,7 @@ void JeandleCompiledCode::resolve_reloc_info(JeandleAssembler& assembler) {
     }
     for (auto& edge : block->edges()) {
       auto& target = edge.getTarget();
-      llvm::StringRef target_name = *(target.getName());
+      llvm::StringRef target_name = target.hasName() ? *(target.getName()) : "";
 
       if (JeandleAssembler::is_routine_call_reloc(target, edge.getKind())) {
         // Routine call relocations.

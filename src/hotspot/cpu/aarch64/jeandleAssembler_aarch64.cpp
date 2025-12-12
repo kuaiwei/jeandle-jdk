@@ -123,6 +123,10 @@ void JeandleAssembler::patch_ic_call_site(int inst_offset, CallSiteInfo* call) {
   __ code()->set_insts_end(insts_end);
 }
 
+void JeandleAssembler::patch_external_call_site(int inst_offset, CallSiteInfo* call) {
+  Unimplemented();
+}
+
 void JeandleAssembler::emit_ic_check() {
   int start_offset = __ offset();
   // rscratch2: ic_klass
@@ -197,15 +201,15 @@ bool JeandleAssembler::is_oop_reloc(LinkSymbol& target, LinkKind kind) {
 }
 
 bool JeandleAssembler::is_routine_call_reloc(LinkSymbol& target, LinkKind kind) {
-  llvm::StringRef target_name = *(target.getName());
-  return !target.isDefined() &&
+  llvm::StringRef target_name = target.hasName() ? *(target.getName()) : "";
+  return !target_name.empty() && !target.isDefined() &&
          JeandleRuntimeRoutine::is_routine_entry(target_name) &&
          kind == LinkKind_aarch64::Branch26PCRel;
 }
 
 bool JeandleAssembler::is_external_call_reloc(LinkSymbol& target, LinkKind kind) {
-  llvm::StringRef target_name = *(target.getName());
-  return !target.isDefined() &&
+  llvm::StringRef target_name = target.hasName() ? *(target.getName()) : "";
+  return !target_name.empty() && !target.isDefined() &&
          !JeandleRuntimeRoutine::is_routine_entry(target_name) &&
          kind == LinkKind_aarch64::Branch26PCRel;
 }
