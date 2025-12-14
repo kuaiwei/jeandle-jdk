@@ -2262,7 +2262,7 @@ void JeandleAbstractInterpreter::null_check(llvm::Value* obj) {
   llvm::BranchInst* null_check_br = _ir_builder.CreateCondBr(if_null, null_check_fail, null_check_pass);
 
   if (UseNewCode) {
-    uncommon_trap(Deoptimization::Reason_null_check, Deoptimization::Action_none /* TODO: try other action */, null_check_fail);
+    uncommon_trap(Deoptimization::Reason_null_check, Deoptimization::Action_maybe_recompile, null_check_fail);
   } else {
     // Add make.implicit metadata, and the ImplicitNullChecksPass will transform it into an implicit check.
     llvm::MDNode* make_implicit = llvm::MDNode::get(*_context, {});

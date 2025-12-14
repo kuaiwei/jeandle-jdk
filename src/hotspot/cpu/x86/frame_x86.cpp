@@ -436,8 +436,8 @@ void frame::adjust_unextended_sp() {
     CompiledMethod* sender_cm = _cb->as_compiled_method_or_null();
     if (sender_cm != nullptr) {
       // If the sender PC is a deoptimization point, get the original PC.
-      if ((sender_cm->is_deopt_entry(_pc) ||
-           sender_cm->is_deopt_mh_entry(_pc))) {
+      if (sender_cm->is_deopt_entry(_pc) ||
+          sender_cm->is_deopt_mh_entry(_pc)) {
         verify_deopt_original_pc(sender_cm, _unextended_sp);
       }
     }

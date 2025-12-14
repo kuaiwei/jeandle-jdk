@@ -140,18 +140,20 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
 
 class JeandleOopMap {
 public:
-  JeandleOopMap(OopMap* oop_map, GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack) :
-      _oop_map(oop_map), _locals(locals), _stack(stack) {
+  JeandleOopMap(OopMap* oop_map, GrowableArray<ScopeValue*>* locals, GrowableArray<ScopeValue*>* stack, bool reexecute) :
+      _oop_map(oop_map), _locals(locals), _stack(stack), _reexecute(reexecute) {
   }
 
   OopMap* oop_map() const { return _oop_map; }
   GrowableArray<ScopeValue*>* locals() const { return _locals; }
   GrowableArray<ScopeValue*>* stack() const { return _stack; }
+  bool reexecute() const { return _reexecute; }
 
 private:
   OopMap* _oop_map;
   GrowableArray<ScopeValue*>* _locals;
   GrowableArray<ScopeValue*>* _stack;
+  bool _reexecute;
 };
 
 using ObjectBuffer   = llvm::MemoryBuffer;

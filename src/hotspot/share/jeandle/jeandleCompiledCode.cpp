@@ -26,6 +26,9 @@
 #include "jeandle/jeandleAssembler.hpp"
 #include "jeandle/jeandleCompilation.hpp"
 #include "jeandle/jeandleCompiledCode.hpp"
+
+#include <interpreter/interpreter.hpp>
+
 #include "jeandle/jeandleRegister.hpp"
 #include "jeandle/jeandleRuntimeRoutine.hpp"
 
@@ -164,7 +167,7 @@ class JeandleCallReloc : public JeandleReloc {
                              methodHandle(),
                              _method,
                              _call->bci(),
-                             false,
+                             _oop_map->reexecute(),
                              false,
                              false,
                              false,
@@ -560,12 +563,18 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
   assert(first.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
   assert(second.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
   int num_deopts = 0;
+  bool reexecute = false;
   if (call_info->has_deopt_operands()) {
     assert(this->_method != nullptr, "must be method compilation");
     auto third = *(location++);
     assert(third.getKind() == StackMapParser::LocationKind::Constant, "unexpected kind");
     num_deopts = third.getSmallConstant();
     assert(num_deopts >= 0, "negative number");
+    int bci = call_info->bci();
+    if (bci != InvocationEntryBci) {
+      Bytecodes::Code code = _method->java_code_at_bci(bci);
+      reexecute = Interpreter::bytecode_should_reexecute(code); /* TODO: special case of multianewarray, please check GraphKit::should_reexecute_implied_by_bytecode */
+    }
   }
 
   // build scope values
@@ -624,7 +633,7 @@ JeandleOopMap* JeandleCompiledCode::build_oop_map(StackMapParser& stackmaps, Sta
       Unimplemented();
     }
   }
-  return new JeandleOopMap(oop_map, locals, stack);
+  return new JeandleOopMap(oop_map, locals, stack, reexecute);
 }
 
 void JeandleCompiledCode::build_exception_handler_table() {
