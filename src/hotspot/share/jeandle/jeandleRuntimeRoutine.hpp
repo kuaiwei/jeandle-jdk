@@ -112,6 +112,8 @@
                                                                                                                                                           \
   def(uncommon_trap, SharedRuntime::uncommon_trap_blob()->entry_point(),   llvm::Type::getVoidTy(context),      llvm::Type::getInt32Ty(context))          \
                                                                                                                                                           \
+  def(install_exceptional_return_for_call_vm,     JeandleRuntimeRoutine::install_exceptional_return_for_call_vm, llvm::Type::getVoidTy(context))          \
+                                                                                                                                                          \
   def(SharedRuntime_complete_monitor_locking_C,   SharedRuntime::complete_monitor_locking_C, llvm::Type::getVoidTy(context),                                             \
                                                                                            llvm::PointerType::get(context, llvm::jeandle::AddrSpace::JavaHeapAddrSpace), \
                                                                                            llvm::PointerType::get(context, llvm::jeandle::AddrSpace::CHeapAddrSpace),    \
@@ -146,6 +148,14 @@ class JeandleRuntimeRoutine : public AllStatic {
     assert(_routine_entry.contains(name), "invalid runtime routine: %s", name.str().c_str());
     return _routine_entry.lookup(name);
   }
+
+  static bool is_routine_entry(llvm::StringRef name) {
+    return _routine_entry.contains(name);
+  }
+
+#ifdef ASSERT
+  static llvm::StringMap<address> routine_entry() { return _routine_entry; }
+#endif
 
 // Define all routines' llvm::FunctionCallee.
 #define DEF_LLVM_CALLEE(c_func, return_type, ...)                                                   \
@@ -183,7 +193,11 @@ class JeandleRuntimeRoutine : public AllStatic {
 
   static void safepoint_handler(JavaThread* current);
 
+  // Install exceptional_return into the current java frame, for throwing exceptions.
   static void install_exceptional_return(oopDesc* exception, JavaThread* current);
+
+  // Install exceptional_return into call_VM stub frame, for checking exceptions during call_VM.
+  static void install_exceptional_return_for_call_vm();
 
   static address get_exception_handler(JavaThread* current);
 

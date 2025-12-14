@@ -18,25 +18,17 @@
  *
  */
 
-#include "jeandle/__llvmHeadersBegin__.hpp"
-#include "jeandle/jeandleRuntimeRoutine.hpp"
+#ifndef SHARE_GLOBALDEFINITIONS_JEANDLE_HPP
+#define SHARE_GLOBALDEFINITIONS_JEANDLE_HPP
 
-#include "jeandle/__hotspotHeadersBegin__.hpp"
-#include "runtime/interfaceSupport.inline.hpp"
-#include "utilities/debug.hpp"
+#ifdef LINUX
+// Only libmath is supported for now.
+constexpr const char* LibmName = "libm.so.6";
+#else
+#error "Unsupported OS"
+#endif
 
-JRT_LEAF(void, JeandleRuntimeRoutine::install_exceptional_return(oopDesc* exception, JavaThread* current))
-  Unimplemented();
-JRT_END
+// USE_TRAMPOLINE_STUB_FIX_OWNER enables relocating trampoline stubs. Needed for external function calls.
+#define USE_TRAMPOLINE_STUB_FIX_OWNER
 
-JRT_LEAF(void, JeandleRuntimeRoutine::install_exceptional_return_for_call_vm())
-  Unimplemented();
-JRT_END
-
-void JeandleRuntimeRoutine::generate_exceptional_return() {
-  Unimplemented();
-}
-
-void JeandleRuntimeRoutine::generate_exception_handler() {
-  Unimplemented();
-}
+#endif // SHARE_GLOBALDEFINITIONS_JEANDLE_HPP

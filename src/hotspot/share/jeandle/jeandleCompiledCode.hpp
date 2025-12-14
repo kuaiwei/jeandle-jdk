@@ -27,6 +27,7 @@
 #include "llvm/IR/Statepoint.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/StackMapParser.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include "jeandle/jeandleExceptionHandlerTable.hpp"
@@ -116,7 +117,8 @@ class CallSiteInfo : public JeandleCompilationResourceObj {
     bool use_default_statepoint_id = (statepoint_id == llvm::StatepointDirectives::DefaultStatepointID);
     bool is_routine_call = (type == JeandleCompiledCall::ROUTINE_CALL);
     bool is_uncommon_trap = target == SharedRuntime::uncommon_trap_blob()->entry_point();
-    assert(is_uncommon_trap || use_default_statepoint_id == is_routine_call, "routine calls should use the default statepoint id");
+    bool is_external_call = (type == JeandleCompiledCall::EXTERNAL_CALL);
+    assert(is_uncommon_trap || (use_default_statepoint_id == (is_routine_call || is_external_call)), "routine calls and external calls should use the default statepoint id");
 #endif // ASSERT
   }
 
@@ -152,10 +154,13 @@ private:
   GrowableArray<ScopeValue*>* _stack;
 };
 
-using ObjectBuffer = llvm::MemoryBuffer;
-using LinkBlock   = llvm::jitlink::Block;
-using LinkEdge    = llvm::jitlink::Edge;
+using ObjectBuffer   = llvm::MemoryBuffer;
+using LinkBlock      = llvm::jitlink::Block;
+using LinkEdge       = llvm::jitlink::Edge;
+using LinkKind       = llvm::jitlink::Edge::Kind;
+using LinkSymbol     = llvm::jitlink::Symbol;
 using StackMapParser = llvm::StackMapParser<ELFT::Endianness>;
+using DynamicLibrary = llvm::sys::DynamicLibrary;
 
 class JeandleAssembler;
 class JeandleCompiledCode : public StackObj {
